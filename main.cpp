@@ -9,6 +9,7 @@ int N_ROWS;
 int M_COLS;
 int B_BLACK;
 int W_WHITE;
+int TOTAL_RINGS;
 int totalScore;
 
 struct Coordinates {
@@ -32,6 +33,7 @@ const unsigned char WALL_DOWN = 0b00000010;
 const unsigned char WALL_LEFT = 0b00000001;
 
 const unsigned char WALL_ALL = 0b00001111;
+const unsigned char CELL_NOT_VISITED = 0b01111111;
 
 // FUNCTIONS
 void init();
@@ -44,7 +46,10 @@ void updateAdjacentCells(int row, int col);
 
 void computeSolution();
 
-void dfs(int row, int col, int ringCount, char buffer[], int index, int rowStart, int colStart);
+bool dfs(int row, int col, int index, int ringCount, const int *rowStart, const int *colStart, char *buffer,
+         int bufferSize);
+
+void printPath(int ringsCount, int pathSize, int startRow, int starCol, char *buffer);
 
 void mapToJson();
 
@@ -55,7 +60,7 @@ int main() {
 
     mapToJson();
 
-    // computeSolution();
+    computeSolution();
 
     return 0;
 }
@@ -245,96 +250,109 @@ void preprocessMap() {
 
 /**************************** SOLUTION ****************************/
 
-void dfs(int row, int col, int ringCount, char buffer[], int index, int rowStart, int colStart) {
-    int numWays = 0;
-    if (starMap[row][col] & CELL_BLACK || starMap[row][col] & CELL_WHITE)
+void printPath(int ringsCount, int pathSize, int startRow, int starCol, char *buffer) {
+    cout << ringsCount << " " << pathSize << " " << startRow << " " << starCol << " ";
+    for (int i = 0; i < pathSize; ++i) {
+        cout << buffer[i];
+    }
+    cout << "#" << endl;
+}
+
+bool dfs(int row, int col, int index, int ringCount, const int *rowStart, const int *colStart, char *buffer,
+         int bufferSize) {
+    //Back home
+    if (row == *rowStart && col == *colStart && index > 0) {
+        if (ringCount >= W_WHITE + B_BLACK) {
+            //THE END GAME
+            printPath(ringCount, index, *rowStart, *colStart, buffer);
+            totalScore = 99999;
+        }
+        return true;
+    }
+
+    //exceed buffer
+    if (index > bufferSize - 2) {
+        return false;
+    }
+
+    //check cell is a ring
+    if (starMap[row][col] & CELL_BLACK || starMap[row][col] & CELL_WHITE) {
         ringCount++;
-
-    cout << "Checking cell[" << row << "][" << col << "]" << endl;
-    cout << "ringCount: " << ringCount << endl;
-    // cout << "buffer: " << buffer << endl;
-
-    // trovi le possibili strade
-    // & con ciascun muro cella corrente
-    // & con visitato cella successiva
-    if (!(starMap[row][col] & WALL_UP) && !(starMap[row - 1][col] & CELL_VISITED)) {
-        numWays++;
-        cout << "UP"
-             << " ";
-    } // non c'è un muro in alto
-
-    if (!(starMap[row][col] & WALL_DOWN) && !(starMap[row + 1][col] & CELL_VISITED)) {
-        numWays++;
-        cout << "DOWN"
-             << " ";
-    } // non c'è un muro in basso
-
-    if (!(starMap[row][col] & WALL_LEFT) && !(starMap[row][col - 1] & CELL_VISITED)) {
-        numWays++;
-        cout << "LEFT"
-             << " ";
-    } // non c'è un muro a sinistra
-
-    if (!(starMap[row][col] & WALL_RIGHT) && !(starMap[row][col + 1] & CELL_VISITED)) {
-        numWays++;
-        cout << "RIGHT"
-             << " ";
-    } // non c'è un muro a destra
-
-    cout << "numWays: " << numWays << endl;
-    // caso base
-    if (numWays == 0 || (ringCount == B_BLACK + W_WHITE)) { // sono in un vicolo cieco o ho finito gli anelli
-        cout << "Primo caso base" << endl;
-        if (ringCount >= totalScore) {
-            // print path
-            cout << ringCount << " " << index << " ";
-            for (int i = 0; i <= index; ++i) {
-                cout << buffer[i];
-            }
-            cout << "#" << endl;
-        }
-        return;
-    } else if ((ringCount == B_BLACK + W_WHITE) && row == rowStart && col == colStart) { // ho finito gli anelli e sono al punto di partenza
-        cout << "Secondo caso base" << endl;
-        // print path
-        cout << ringCount << " " << index << " ";
-        for (int i = 0; i <= index; ++i) {
-            cout << buffer[i];
-        }
-        cout << "#" << endl;
-        return;
-    } else {
-        cout << "Passo ricorsivo" << endl;
-        // setto il visitato
-        starMap[row][col] |= CELL_VISITED;
-
-        if (!(starMap[row][col] & WALL_UP) && !(starMap[row - 1][col] & CELL_VISITED)) { // non c'è un muro in alto
-            buffer[index++] = 'U';
-            dfs(row - 1, col, ringCount, buffer, index, rowStart, colStart);
-            // tolgo il visitato
-            starMap[row][col] &= ~CELL_VISITED;
-        }
-        if (!(starMap[row][col] & WALL_DOWN) && !(starMap[row + 1][col] & CELL_VISITED)) { // non c'è un muro in basso
-            buffer[index++] = 'D';
-            dfs(row + 1, col, ringCount, buffer, index, rowStart, colStart);
-            starMap[row][col] &= ~CELL_VISITED;
-        }
-        if (!(starMap[row][col] & WALL_LEFT) && !(starMap[row][col - 1] & CELL_VISITED)) { // non c'è un muro a sinistra
-            buffer[index++] = 'L';
-            dfs(row, col - 1, ringCount, buffer, index, rowStart, colStart);
-            starMap[row][col] &= ~CELL_VISITED;
-        }
-        if (!(starMap[row][col] & WALL_RIGHT) && !(starMap[row][col + 1] & CELL_VISITED)) { // non c'è un muro a destra
-            buffer[index++] = 'R';
-            dfs(row, col + 1, ringCount, buffer, index, rowStart, colStart);
-            starMap[row][col] &= ~CELL_VISITED;
+        //new ring, checkpoint
+        if (ringCount > totalScore) {
+            totalScore = ringCount;
+            printPath(ringCount, index, *rowStart, *colStart, buffer);
         }
     }
+
+
+    int numWays = 0;
+    unsigned char availableDirection = CELL_EMPTY;
+    //up
+    if (!(starMap[row][col] & WALL_UP) && (!(starMap[row - 1][col] & CELL_VISITED) ||
+                                           (ringCount == TOTAL_RINGS && *rowStart == row - 1 && *colStart == col))) {
+        availableDirection |= WALL_UP;
+        numWays++;
+    }
+    //right
+    if (!(starMap[row][col] & WALL_RIGHT) && (!(starMap[row][col + 1] & CELL_VISITED) ||
+                                              (ringCount == TOTAL_RINGS && *rowStart == row && *colStart == col + 1))) {
+        availableDirection |= WALL_RIGHT;
+        numWays++;
+    }
+    //down
+    if (!(starMap[row][col] & WALL_DOWN) && (!(starMap[row + 1][col] & CELL_VISITED) ||
+                                             (ringCount == TOTAL_RINGS && *rowStart == row + 1 && *colStart == col))) {
+        availableDirection |= WALL_DOWN;
+        numWays++;
+    }
+    //left
+    if (!(starMap[row][col] & WALL_LEFT) && (!(starMap[row][col - 1] & CELL_VISITED) ||
+                                             (ringCount == TOTAL_RINGS && *rowStart == row && *colStart == col - 1))) {
+        availableDirection |= WALL_LEFT;
+        numWays++;
+    }
+
+    // sono in un vicolo cieco
+    if (numWays == 0) {
+        return false;
+        }
+
+    //DFS
+        starMap[row][col] |= CELL_VISITED;
+    bool isDfsEnd= false;
+    //up
+    if (availableDirection & WALL_UP) {
+        buffer[index] = 'U';
+        isDfsEnd = dfs(row - 1, col, index + 1, ringCount, rowStart, colStart, buffer, bufferSize);
+        starMap[row][col] &= CELL_NOT_VISITED;
+        }
+    //right
+    if (!isDfsEnd && availableDirection & WALL_RIGHT) {
+        buffer[index] = 'R';
+        isDfsEnd = dfs(row, col + 1, index + 1, ringCount, rowStart, colStart, buffer, bufferSize);
+        starMap[row][col] &= CELL_NOT_VISITED;
+        }
+    //down
+    if (!isDfsEnd && availableDirection & WALL_DOWN) {
+        buffer[index] = 'D';
+        isDfsEnd = dfs(row + 1, col, index + 1, ringCount, rowStart, colStart, buffer, bufferSize);
+        starMap[row][col] &= CELL_NOT_VISITED;
+        }
+    //left
+    if (!isDfsEnd && availableDirection & WALL_LEFT) {
+        buffer[index] = 'L';
+        isDfsEnd = dfs(row, col - 1, index + 1, ringCount, rowStart, colStart, buffer, bufferSize);
+        starMap[row][col] &= CELL_NOT_VISITED;
+        }
+
+    return isDfsEnd;
+
 }
 
 void computeSolution() {
-    int row, col;
-    char buffer[66000];
+    int row = 0, col = 0;
+    char *buffer = new char[66000];
     // pick startup position
     for (int i = 0; i < W_WHITE; ++i) {
         int rowW = whiteRings[i].row;
@@ -347,7 +365,7 @@ void computeSolution() {
     }
     printf("starting from cell[%d][%d]\n", row, col);
 
-    dfs(row, col, 0, buffer, 0, row, col);
+    dfs(row, col, 0, 0, &row, &col, buffer, 66000);
 }
 
 /**************************** MAP UTILS ****************************/
@@ -379,6 +397,7 @@ void init() {
     ifstream in("input.txt");
 
     in >> N_ROWS >> M_COLS >> B_BLACK >> W_WHITE;
+    TOTAL_RINGS = B_BLACK + W_WHITE;
 
     // build starMap
     starMap = new unsigned char *[N_ROWS];
