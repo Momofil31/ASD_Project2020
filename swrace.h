@@ -6,16 +6,15 @@
 using namespace std;
 
 namespace helpers {
-    long long get_elapsed_time(void);
-    bool has_reached_timeout(void);
+long long get_elapsed_time(void);
+bool has_reached_timeout(void);
 
-    void setup(void);
-}
+void setup(void);
+} // namespace helpers
 
 #ifndef GRADER_CPP
 
-__attribute__((weak))
-int __real_main();
+__attribute__((weak)) int __real_main();
 
 int main() {
     helpers::setup();

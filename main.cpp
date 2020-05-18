@@ -1,4 +1,4 @@
-
+//#include "swrace.h"
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -9,6 +9,7 @@ int N_ROWS;
 int M_COLS;
 int B_BLACK;
 int W_WHITE;
+int totalScore;
 
 struct Coordinates {
     int row;
@@ -41,150 +42,312 @@ bool checkBounds(int row, int col);
 
 void updateAdjacentCells(int row, int col);
 
-void printMap();
+void computeSolution();
+
+void dfs(int row, int col, int ringCount, char buffer[], int index, int rowStart, int colStart);
+
+void mapToJson();
 
 int main() {
     init();
 
     preprocessMap();
 
-    printMap();
+    mapToJson();
+
+    // computeSolution();
 
     return 0;
 }
 
 /**************************** PREPROCESSING ****************************/
-void preprocessBorders() {
-    for (int i = 0; i < N_ROWS; ++i) {
-        // first col, wall left
-        if (starMap[i][0] & CELL_WHITE) {
-            // paper 4, this cell is crossed straight
-            starMap[i][0] |= WALL_RIGHT;
-            starMap[i][0] |= CELL_PREPROCESSED;
-            updateAdjacentCells(i, 0);
-        }
-        if (starMap[i][0] & CELL_BLACK) {
-            // paper 3, cell on right is straight
-            starMap[i][1] |= WALL_UP;
-            starMap[i][1] |= WALL_DOWN;
-            starMap[i][1] |= CELL_PREPROCESSED;
-            updateAdjacentCells(i, 1);
-        }
-
-        // last col, wall right
-        if (starMap[i][M_COLS - 1] & CELL_WHITE) {
-            // paper 4, this cell is crossed straight
-            starMap[i][M_COLS - 1] |= WALL_LEFT;
-            starMap[i][M_COLS - 1] |= CELL_PREPROCESSED;
-            updateAdjacentCells(i, M_COLS - 1);
-        }
-        if (starMap[i][M_COLS - 1] & CELL_BLACK) {
-            // paper 3, cell on left is straight
-            starMap[i][M_COLS - 2] |= WALL_UP;
-            starMap[i][M_COLS - 2] |= WALL_DOWN;
-            starMap[i][M_COLS - 2] |= CELL_PREPROCESSED;
-            updateAdjacentCells(i, M_COLS - 2);
-        }
-    }
-
-    for (int j = 0; j < M_COLS; ++j) {
-        // first row, wall up
-        if (starMap[0][j] & CELL_WHITE) {
-            // paper 4, this cell is crossed straight
-            starMap[0][j] |= WALL_DOWN;
-            starMap[0][j] |= CELL_PREPROCESSED;
-            updateAdjacentCells(0, j);
-        }
-
-        if (starMap[0][j] & CELL_BLACK) {
-            // paper 3, cell down is straight
-            starMap[1][j] |= WALL_LEFT;
-            starMap[1][j] |= WALL_RIGHT;
-            starMap[1][j] |= CELL_PREPROCESSED;
-            updateAdjacentCells(1, j);
-        }
-
-        // last row, wall down
-        if (starMap[N_ROWS - 1][j] & CELL_WHITE) {
-            // paper 4, this cell is crossed straight
-            starMap[N_ROWS - 1][j] |= WALL_UP;
-            starMap[N_ROWS - 1][j] |= CELL_PREPROCESSED;
-            updateAdjacentCells(N_ROWS - 1, j);
-        }
-
-        if (starMap[N_ROWS - 1][j] & CELL_BLACK) {
-            // paper 3, cell up is straight
-            starMap[N_ROWS - 2][j] |= WALL_LEFT;
-            starMap[N_ROWS - 2][j] |= WALL_RIGHT;
-            starMap[N_ROWS - 2][j] |= CELL_PREPROCESSED;
-            updateAdjacentCells(N_ROWS - 2, j);
-        }
-    }
-}
-
 void preprocessBlackRings() {
-    // TODO paper 5
-    // TODO paper 7
+    for (int i = 0; i < B_BLACK; ++i) {
+        int row = blackRings[i].row;
+        int col = blackRings[i].col;
+
+        if (!(starMap[row][col] & CELL_PREPROCESSED)) {
+
+            // Heuristic 1: distance from border <=1
+            // up border
+            if (row <= 1) {
+                // down cell straight
+                starMap[row + 1][col] |= WALL_LEFT;
+                starMap[row + 1][col] |= WALL_RIGHT;
+                starMap[row + 1][col] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row + 1, col);
+            }
+
+            // right border
+            if (col >= M_COLS - 2) {
+                // left cell straight
+                starMap[row][col - 1] |= WALL_UP;
+                starMap[row][col - 1] |= WALL_DOWN;
+                starMap[row][col - 1] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row, col - 1);
+            }
+
+            // down border
+            if (row >= N_ROWS - 2) {
+                // up cell straight
+                starMap[row - 1][col] |= WALL_LEFT;
+                starMap[row - 1][col] |= WALL_RIGHT;
+                starMap[row - 1][col] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row - 1, col);
+            }
+
+            // left border
+            if (col <= 1) {
+                // right cell straight
+                starMap[row][col + 1] |= WALL_UP;
+                starMap[row][col + 1] |= WALL_DOWN;
+                starMap[row][col + 1] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row, col + 1);
+            }
+
+            // Heuristic 3: two black dots near have straight path on the opposite side
+            // check only down and right
+            // down
+            if (checkBounds(row + 1, col) && starMap[row + 1][col] & CELL_BLACK) {
+                // up
+                starMap[row - 1][col] |= WALL_LEFT;
+                starMap[row - 1][col] |= WALL_RIGHT;
+                starMap[row - 1][col] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row - 1, col);
+                // 2 cell down
+                starMap[row + 2][col] |= WALL_LEFT;
+                starMap[row + 2][col] |= WALL_RIGHT;
+                starMap[row + 2][col] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row + 2, col);
+            }
+            // right
+            if (checkBounds(row, col + 1) && starMap[row][col + 1] & CELL_BLACK) {
+                // left
+                starMap[row][col - 1] |= WALL_UP;
+                starMap[row][col - 1] |= WALL_DOWN;
+                starMap[row][col - 1] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row, col - 1);
+                // 2 cell right
+                starMap[row][col + 2] |= WALL_UP;
+                starMap[row][col + 2] |= WALL_DOWN;
+                starMap[row][col + 2] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row, col + 2);
+            }
+
+            // Heuristic 5: two white next to black in an oblique angle
+            // up
+            if (checkBounds(row - 1, col - 1) && starMap[row - 1][col - 1] & CELL_WHITE && checkBounds(row - 1, col + 1) &&
+                starMap[row - 1][col + 1] & CELL_WHITE) {
+                // down straight
+                starMap[row + 1][col] |= WALL_LEFT;
+                starMap[row + 1][col] |= WALL_RIGHT;
+                starMap[row + 1][col] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row + 1, col);
+            }
+            // right
+            if (checkBounds(row - 1, col + 1) && starMap[row - 1][col + 1] & CELL_WHITE && checkBounds(row + 1, col + 1) &&
+                starMap[row + 1][col + 1] & CELL_WHITE) {
+                // left straight
+                starMap[row][col - 1] |= WALL_UP;
+                starMap[row][col - 1] |= WALL_DOWN;
+                starMap[row][col - 1] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row, col - 1);
+            }
+            // down
+            if (checkBounds(row + 1, col - 1) && starMap[row + 1][col - 1] & CELL_WHITE && checkBounds(row + 1, col + 1) &&
+                starMap[row + 1][col + 1] & CELL_WHITE) {
+                // up straight
+                starMap[row - 1][col] |= WALL_LEFT;
+                starMap[row - 1][col] |= WALL_RIGHT;
+                starMap[row - 1][col] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row - 1, col);
+            }
+            // left
+            if (checkBounds(row - 1, col - 1) && starMap[row - 1][col - 1] & CELL_WHITE && checkBounds(row + 1, col - 1) &&
+                starMap[row + 1][col - 1] & CELL_WHITE) {
+                // right straight
+                starMap[row][col + 1] |= WALL_UP;
+                starMap[row][col + 1] |= WALL_DOWN;
+                starMap[row][col + 1] |= CELL_PREPROCESSED;
+                updateAdjacentCells(row, col + 1);
+            }
+        }
+    }
 }
 
 void preprocessWhiteRings() {
-    // paper 6
-    for (int i = 0; i < W_WHITE; ++i) {
-        int row = whiteRings[i].row;
-        int col = whiteRings[i].col;
-        // only if not preprocessed before
-        if (!(starMap[row][col] & CELL_PREPROCESSED)) {
-            // left and right are white
-            if (checkBounds(row, col - 1) && starMap[row][col - 1] & CELL_WHITE && checkBounds(row, col + 1) && starMap[row][col + 1] & CELL_WHITE) {
-                // all 3 cell straight up - down
-                // left
-                starMap[row][col - 1] |= WALL_RIGHT;
-                starMap[row][col - 1] |= WALL_LEFT;
-                starMap[row][col - 1] |= CELL_PREPROCESSED;
-                updateAdjacentCells(row, col - 1);
-                // right
-                starMap[row][col + 1] |= WALL_RIGHT;
-                starMap[row][col + 1] |= WALL_LEFT;
-                starMap[row][col + 1] |= CELL_PREPROCESSED;
-                updateAdjacentCells(row, col + 1);
-                // current
-                starMap[row][col] |= WALL_RIGHT;
-                starMap[row][col] |= WALL_LEFT;
-                starMap[row][col] |= CELL_PREPROCESSED;
-                updateAdjacentCells(row, col);
+    // Heuristic 2
+    bool needOneMoreCycle = true;
+    while (needOneMoreCycle) {
+        needOneMoreCycle = false;
+        for (int i = 0; i < W_WHITE; ++i) {
+            int row = whiteRings[i].row;
+            int col = whiteRings[i].col;
+            // only if not preprocessed before
+            if (!(starMap[row][col] & CELL_PREPROCESSED)) {
+                // has one wall, set the opposite
+                // wall up
+                if (starMap[row][col] & WALL_UP) {
+                    starMap[row][col] |= WALL_DOWN;
+                    starMap[row][col] |= CELL_PREPROCESSED;
+                    needOneMoreCycle = true;
+                }
+                // wall right
+                if (starMap[row][col] & WALL_RIGHT) {
+                    starMap[row][col] |= WALL_LEFT;
+                    starMap[row][col] |= CELL_PREPROCESSED;
+                    needOneMoreCycle = true;
+                }
+                // wall down
+                if (starMap[row][col] & WALL_DOWN) {
+                    starMap[row][col] |= WALL_UP;
+                    starMap[row][col] |= CELL_PREPROCESSED;
+                    needOneMoreCycle = true;
+                }
+                // wall left
+                if (starMap[row][col] & WALL_LEFT) {
+                    starMap[row][col] |= WALL_RIGHT;
+                    starMap[row][col] |= CELL_PREPROCESSED;
+                    needOneMoreCycle = true;
+                }
 
-            } else
-                // up and down are white
-                if (checkBounds(row - 1, col) && starMap[row - 1][col] & CELL_WHITE && checkBounds(row + 1, col) &&
-                    starMap[row + 1][col] & CELL_WHITE) {
-                // all 3 cell straight left - right
-
-                // up
-                starMap[row - 1][col] |= WALL_UP;
-                starMap[row - 1][col] |= WALL_DOWN;
-                starMap[row - 1][col] |= CELL_PREPROCESSED;
-                updateAdjacentCells(row - 1, col);
+                // Heuristic 4: if there n>=3 white dots next to each other there are n line straight through them
+                // check only 2 right and 2 down,
+                // update only current, to the other there is the while to update with walls
                 // down
-                starMap[row + 1][col] |= WALL_UP;
-                starMap[row + 1][col] |= WALL_DOWN;
-                starMap[row + 1][col] |= CELL_PREPROCESSED;
-                updateAdjacentCells(row + 1, col);
-                // current
-                starMap[row][col] |= WALL_UP;
-                starMap[row][col] |= WALL_DOWN;
-                starMap[row][col] |= CELL_PREPROCESSED;
-                updateAdjacentCells(row, col);
+                if (checkBounds(row + 2, col) && starMap[row + 2][col] & CELL_WHITE && starMap[row + 1][col] & CELL_WHITE) {
+                    starMap[row][col] |= WALL_UP;
+                    starMap[row][col] |= WALL_DOWN;
+                    starMap[row][col] |= CELL_PREPROCESSED;
+                    needOneMoreCycle = true;
+                }
+                // right
+                if (checkBounds(row, col + 2) && starMap[row][col + 2] & CELL_WHITE && starMap[row][col + 1] & CELL_WHITE) {
+                    starMap[row][col] |= WALL_RIGHT;
+                    starMap[row][col] |= WALL_LEFT;
+                    starMap[row][col] |= CELL_PREPROCESSED;
+                    needOneMoreCycle = true;
+                }
+
+                if (needOneMoreCycle) {
+                    updateAdjacentCells(row, col);
+                }
             }
         }
     }
 }
 
 void preprocessMap() {
-    preprocessBorders();
-
     preprocessBlackRings();
 
     preprocessWhiteRings();
+}
+
+/**************************** SOLUTION ****************************/
+
+void dfs(int row, int col, int ringCount, char buffer[], int index, int rowStart, int colStart) {
+    int numWays = 0;
+    if (starMap[row][col] & CELL_BLACK || starMap[row][col] & CELL_WHITE)
+        ringCount++;
+
+    cout << "Checking cell[" << row << "][" << col << "]" << endl;
+    cout << "ringCount: " << ringCount << endl;
+    // cout << "buffer: " << buffer << endl;
+
+    // trovi le possibili strade
+    // & con ciascun muro cella corrente
+    // & con visitato cella successiva
+    if (!(starMap[row][col] & WALL_UP) && !(starMap[row - 1][col] & CELL_VISITED)) {
+        numWays++;
+        cout << "UP"
+             << " ";
+    } // non c'è un muro in alto
+
+    if (!(starMap[row][col] & WALL_DOWN) && !(starMap[row + 1][col] & CELL_VISITED)) {
+        numWays++;
+        cout << "DOWN"
+             << " ";
+    } // non c'è un muro in basso
+
+    if (!(starMap[row][col] & WALL_LEFT) && !(starMap[row][col - 1] & CELL_VISITED)) {
+        numWays++;
+        cout << "LEFT"
+             << " ";
+    } // non c'è un muro a sinistra
+
+    if (!(starMap[row][col] & WALL_RIGHT) && !(starMap[row][col + 1] & CELL_VISITED)) {
+        numWays++;
+        cout << "RIGHT"
+             << " ";
+    } // non c'è un muro a destra
+
+    cout << "numWays: " << numWays << endl;
+    // caso base
+    if (numWays == 0 || (ringCount == B_BLACK + W_WHITE)) { // sono in un vicolo cieco o ho finito gli anelli
+        cout << "Primo caso base" << endl;
+        if (ringCount >= totalScore) {
+            // print path
+            cout << ringCount << " " << index << " ";
+            for (int i = 0; i <= index; ++i) {
+                cout << buffer[i];
+            }
+            cout << "#" << endl;
+        }
+        return;
+    } else if ((ringCount == B_BLACK + W_WHITE) && row == rowStart && col == colStart) { // ho finito gli anelli e sono al punto di partenza
+        cout << "Secondo caso base" << endl;
+        // print path
+        cout << ringCount << " " << index << " ";
+        for (int i = 0; i <= index; ++i) {
+            cout << buffer[i];
+        }
+        cout << "#" << endl;
+        return;
+    } else {
+        cout << "Passo ricorsivo" << endl;
+        // setto il visitato
+        starMap[row][col] |= CELL_VISITED;
+
+        if (!(starMap[row][col] & WALL_UP) && !(starMap[row - 1][col] & CELL_VISITED)) { // non c'è un muro in alto
+            buffer[index++] = 'U';
+            dfs(row - 1, col, ringCount, buffer, index, rowStart, colStart);
+            // tolgo il visitato
+            starMap[row][col] &= ~CELL_VISITED;
+        }
+        if (!(starMap[row][col] & WALL_DOWN) && !(starMap[row + 1][col] & CELL_VISITED)) { // non c'è un muro in basso
+            buffer[index++] = 'D';
+            dfs(row + 1, col, ringCount, buffer, index, rowStart, colStart);
+            starMap[row][col] &= ~CELL_VISITED;
+        }
+        if (!(starMap[row][col] & WALL_LEFT) && !(starMap[row][col - 1] & CELL_VISITED)) { // non c'è un muro a sinistra
+            buffer[index++] = 'L';
+            dfs(row, col - 1, ringCount, buffer, index, rowStart, colStart);
+            starMap[row][col] &= ~CELL_VISITED;
+        }
+        if (!(starMap[row][col] & WALL_RIGHT) && !(starMap[row][col + 1] & CELL_VISITED)) { // non c'è un muro a destra
+            buffer[index++] = 'R';
+            dfs(row, col + 1, ringCount, buffer, index, rowStart, colStart);
+            starMap[row][col] &= ~CELL_VISITED;
+        }
+    }
+}
+
+void computeSolution() {
+    int row, col;
+    char buffer[66000];
+    // pick startup position
+    for (int i = 0; i < W_WHITE; ++i) {
+        int rowW = whiteRings[i].row;
+        int colW = whiteRings[i].col;
+        if (starMap[rowW][colW] & CELL_PREPROCESSED) {
+            row = rowW;
+            col = colW;
+            break;
+        }
+    }
+    printf("starting from cell[%d][%d]\n", row, col);
+
+    dfs(row, col, 0, buffer, 0, row, col);
 }
 
 /**************************** MAP UTILS ****************************/
@@ -195,25 +358,25 @@ void updateAdjacentCells(int row, int col) {
 
     // up
     if (starMap[row][col] & WALL_UP && checkBounds(row - 1, col)) {
-        starMap[row - 1][col] |= WALL_UP;
+        starMap[row - 1][col] |= WALL_DOWN;
     }
     // right
     if (starMap[row][col] & WALL_RIGHT && checkBounds(row, col + 1)) {
-        starMap[row][col + 1] |= WALL_RIGHT;
+        starMap[row][col + 1] |= WALL_LEFT;
     }
     // down
     if (starMap[row][col] & WALL_DOWN && checkBounds(row + 1, col)) {
-        starMap[row + 1][col] |= WALL_DOWN;
+        starMap[row + 1][col] |= WALL_UP;
     }
     // left
     if (starMap[row][col] & WALL_LEFT && checkBounds(row, col - 1)) {
-        starMap[row][col - 1] |= WALL_LEFT;
+        starMap[row][col - 1] |= WALL_RIGHT;
     }
 }
 
 /**************************** GENERAL UTILS ****************************/
 void init() {
-    ifstream in("input/input0.txt");
+    ifstream in("input.txt");
 
     in >> N_ROWS >> M_COLS >> B_BLACK >> W_WHITE;
 
@@ -262,18 +425,20 @@ void init() {
     in.close();
 }
 
-void printMap() {
+void mapToJson() {
+    cout << "{\"cols\":" << M_COLS << ",\"rows\":" << N_ROWS << ",\"data\":[";
     for (int i = 0; i < N_ROWS; ++i) {
-        cout << endl;
+        cout << "[";
         for (int j = 0; j < M_COLS; ++j) {
-            if (starMap[i][j] & CELL_BLACK) {
-                cout << "B\t";
-            } else if (starMap[i][j] & CELL_WHITE) {
-                cout << "W\t";
-            } else {
-                // cout << "_ ";
-                cout << (int)starMap[i][j] << "\t";
+            cout << (int)starMap[i][j];
+            if (j < M_COLS - 1) {
+                cout << ",";
             }
         }
+        cout << "]";
+        if (i < N_ROWS - 1) {
+            cout << ",";
+        }
     }
+    cout << "]}" << endl;
 }

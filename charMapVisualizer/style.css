@@ -1,0 +1,54 @@
+body {
+    margin: 0;
+    padding: 0;
+    width: 1920px;
+    height: 1920px;
+}
+
+table {
+    background: lightblue;
+}
+
+td {
+    width: 6px;
+    height: 6px;
+    border-width: 1px;
+    border-style: solid;
+    border-color: transparent;
+}
+
+td.WALL_UP {
+    border-top-color: red;
+}
+
+td.WALL_RIGHT {
+    border-right-color: red;
+}
+
+td.WALL_DOWN {
+    border-bottom-color: red;
+}
+
+td.WALL_LEFT {
+    border-left-color: red;
+}
+
+td.CELL_EMPTY {
+
+}
+
+td.CELL_BLACK {
+    background: black;
+}
+
+td.CELL_WHITE {
+    background: white;
+}
+
+td.CELL_PREPROCESSED {
+    border-style: dashed;
+}
+
+td.CELL_VISITED {
+    border-color: orange;
+}
