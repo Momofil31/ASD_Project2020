@@ -1,115 +1,209 @@
 #include <bits/stdc++.h>
 
 using namespace std;
-
-enum type { SQUARE, WHITE, BLACK };
-
 int N, M, B, W;
+char grid[257][257];
 
-vector<vector<type>> mappa;
-
-bool check(vector<vector<type>> &mappa, int r, int c, int pathLength, string &path) {
-    int x, y = r, c;
-    int lastx, lasty = r, c;
-    char ch, lastCh, nextCh;
-
-    for (int i = 0; i < pathLength; i++) {
-        ch = path[i];
-        lastCh = path[i - 1];
-        nextCh = path[i + 1];
-
-        switch (c) {
-        case 'R':
-            lastx, lasty = x, y;
-            x, y = x, y + 1;
-            break;
-        case 'L':
-            lastx, lasty = x, y;
-            x, y = x, y - 1;
-            break;
-        case 'U':
-            lastx, lasty = x, y;
-            x, y = x + 1, y;
-            break;
-        case 'D':
-            lastx, lasty = x, y;
-            x, y = x - 1, y;
-            break;
-        case '#': // sono arrivato alla fine
-            break;
-        default:
-            return false;
+float calculate_points(string line) {
+    stringstream sline;
+    sline.str(line);
+    int A, L, r, c;
+    string movements;
+    sline >> A >> L >> r >> c >> movements;
+    if (movements.size() - 1 != L) {
+        cout << "Expected " << L << " moves, found " << movements.size() - 1 << "; points: ";
+        return 0;
+    }
+    char mov_grid[257][257];
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < M; ++j) {
+            mov_grid[i][j] = '.';
         }
-        // controllo se la cella nuova è quadrato, bianco o nero
-        if (mappa[x][y] == SQUARE) {
-            // non faccio nulla
-        } else if (mappa[x][y] == BLACK) {
-            if (lastCh != ch && nextCh == ch) // OK angolo di novanta gradi
-        } else if (mappa[x][y] == WHITE) {
-            if (lastCh == ch && nextCh != ch)
+    }
+    int x = c, y = r;
+    int num = 0;
+    bool closed = false;
+    int direction = 0, old_direction = 0;
+    bool direction_changed = false, last_W = false;
+    int visited = 0;
+    bool second_white = false;
+    for (auto chr : movements) {
+        if (chr == '#') {
+            if (num != L) {
+                cout << "Found # character not at the end; points: ";
+                return 0;
+            }
+            break;
+        }
+        old_direction = direction;
+        if (chr == 'U' || chr == 'D') {
+            direction = 1;
+        } else {
+            direction = -1;
+        }
+        if (last_W) {
+            if (old_direction != direction) {
+                visited++;
+                last_W = false;
+                if (num == 2)
+                    second_white = false;
+            } else if (!second_white) {
+                cout << "Direction not changed before or after W; points: ";
+                return 0;
+            }
+        }
+        if (old_direction != 0 && grid[y][x] != '.') {
+            if (grid[y][x] == 'B') {
+                if (old_direction != direction) {
+                    visited++;
+                } else {
+                    cout << "Direction not changed on B; points: ";
+                    return 0;
+                }
+            } else if (grid[y][x] == 'W') {
+                if (num == 1) {
+                    second_white = true;
+                } else if (old_direction == direction) {
+                    if (direction_changed) {
+                        visited++;
+                    } else {
+                        last_W = true;
+                    }
+                } else {
+                    cout << "Direction changed on W; points: ";
+                    return 0;
+                }
+            }
+        }
+        if (old_direction != 0) {
+            if (direction != old_direction) {
+                direction_changed = true;
+            } else {
+                direction_changed = false;
+            }
+        }
+        mov_grid[y][x] = chr;
+        if (chr == 'U') {
+            y--;
+        }
+        if (chr == 'D') {
+            y++;
+        }
+        if (chr == 'L') {
+            x--;
+        }
+        if (chr == 'R') {
+            x++;
+        }
+        if (!(x < M && x >= 0) || !(y < N && y >= 0)) {
+            cout << "Out of map:(" << y << ", " << x << "); points: ";
+            return 0;
+        }
+        if (mov_grid[y][x] != '.') {
+            if (num == L - 1 && y == r && x == c) {
+                closed = true;
+            } else {
+                cout << "Path intersecting at move: " << num << " in (" << y << ", " << x << "); points: ";
+                return 0;
+            }
+        }
+        num++;
+    }
+    if (last_W) {
+        cout << "Direction not changed before or after W; points: ";
+        return 0;
+    }
+    if (!closed) {
+        if (grid[r][c] != '.')
+            visited++;
+        if (grid[y][x] != '.')
+            visited++;
+        if (second_white) {
+            cout << "Direction not changed before or after W; points: ";
+            return 0;
+        }
+    } else {
+        if (grid[r][c] == 'B') {
+            if (direction == 1 && (mov_grid[r][c] == 'R' || mov_grid[r][c] == 'L')) {
+                visited++;
+            } else if (direction == -1 && (mov_grid[r][c] == 'U' || mov_grid[r][c] == 'D')) {
+                visited++;
+            } else {
+                cout << "Direction not changed on B; points: ";
+                return 0;
+            }
+        } else if (grid[r][c] == 'W') {
+            if (direction_changed) {
+                visited++;
+            } else if ((movements[0] == 'U' || movements[0] == 'D') && (movements[1] == 'L' || movements[1] == 'R')) {
+                visited++;
+            } else if ((movements[1] == 'U' || movements[1] == 'D') && (movements[0] == 'L' || movements[0] == 'R')) {
+                visited++;
+            } else {
+                cout << "Direction not changed before or after W; points: ";
+                return 0;
+            }
+        }
+        if (second_white) {
+            if (direction == 1 && (mov_grid[r][c] == 'R' || mov_grid[r][c] == 'L')) {
+                visited++;
+            } else if (direction == -1 && (mov_grid[r][c] == 'U' || mov_grid[r][c] == 'D')) {
+                visited++;
+            } else {
+                cout << "Direction not changed before or after W; points: ";
+                return 0;
+            }
         }
     }
 
-    return true;
+    if (visited != A) {
+        cout << "Visited only " << visited << " rings, not " << A << "; points: ";
+        return 0;
+    }
+    float points = 100 * (float(A) / float(B + W));
+    if (!closed) {
+        points *= 1.0 / 2;
+    }
+    return points;
 }
 
 int main(int argc, char *argv[]) {
-    int A, L, r, c;
-    string path;
-
     if (argc != 3) {
-        cout << "wrong arguments! ./checker <outputToCheck> <inputFile> \n";
+        cout << "Wrong arguments! <input> <output>" << endl;
+        return 1;
     }
+    string inputPath = "input/";
+    string outputPath = "output/";
+    ifstream inf(inputPath + argv[1]);
+    ifstream outf(outputPath + argv[2]);
 
-    string outputToCheckPath = "output/";
-    string inputFilePath = "input/";
-    ifstream inO(outputToCheckPath + argv[1]);
-    ifstream inI(inputFilePath + argv[2]);
-
-    // READING LAST VALID LINE FROM OUTPUT FILE TO CHECK
-    string lineToCheck;
-    string lineSoFar;
-    while (getline(inO, lineSoFar)) {
-        if (lineSoFar[lineSoFar.length() - 1] == '#')
-            lineToCheck = lineSoFar;
+    inf >> N >> M >> B >> W;
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < M; ++j) {
+            grid[i][j] = '.';
+        }
     }
-    cout << lineToCheck << endl;
-
-    // Splitting line by spaces
-    istringstream ss(lineToCheck);
-    // Read a word
-    string word;
-    ss >> A >> L >> r >> c >> path;
-
-    // cout << A << L << r << c << path << endl; // to check if splitting worked
-
-    // READING MAP FROM INPUT FILE
-    inI >> N >> M >> B >> W;
-
-    mappa.resize(N, vector<type>(M, SQUARE));
-
-    for (int i = 0; i < B; i++) {
-        int x, y;
-        inI >> x >> y;
-        mappa[x][y] = BLACK;
+    for (int i = 0; i < B; ++i) {
+        int r, c;
+        inf >> r >> c;
+        grid[r][c] = 'B';
     }
-
-    for (int i = 0; i < W; i++) {
-        int x, y;
-        inI >> x >> y;
-        mappa[x][y] = WHITE;
+    for (int i = 0; i < W; ++i) {
+        int r, c;
+        inf >> r >> c;
+        grid[r][c] = 'W';
     }
-
-    for (auto &row : mappa) {
-        for (auto &cell : row) {
-            cout << cell << " ";
+    /*for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < M; ++j) {
+            cout << grid[i][j];
         }
         cout << endl;
+    }*/
+    string line;
+    while (getline(outf, line)) {
+        if (line[line.size() - 1] == '#')
+            cout << calculate_points(line) << "%" << endl;
+        else
+            cout << "Not terminated in #: 0%" << endl;
     }
-    cout << endl;
-
-    check(mappa, r, c, L, path);
-
-    inO.close();
-    inI.close();
 }
