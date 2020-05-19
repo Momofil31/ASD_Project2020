@@ -10,11 +10,13 @@ table {
 }
 
 td {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
+    padding: 0;
     border-width: 1px;
     border-style: solid;
     border-color: transparent;
+    position: relative;
 }
 
 td.WALL_UP {
@@ -51,4 +53,43 @@ td.CELL_PREPROCESSED {
 
 td.CELL_VISITED {
     border-color: orange;
+}
+
+td div.pathIn{
+    position: absolute;
+    background: rebeccapurple;
+}
+
+td div.pathOut{
+    position: absolute;
+    background: purple;
+}
+
+td div.pathUp{
+    top: 0;
+    left: 3px;
+
+    width: 1px;
+    height: 4px;
+}
+td div.pathRight{
+    top: 3px;
+    right: 0;
+
+    width: 4px;
+    height: 1px;
+}
+td div.pathDown{
+    bottom: 0;
+    left: 3px;
+
+    width: 1px;
+    height: 4px;
+}
+td div.pathLeft{
+    top: 3px;
+    left: 0;
+
+    width: 4px;
+    height: 1px;
 }
