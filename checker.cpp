@@ -160,6 +160,15 @@ float calculate_points(string line) {
         cout << "Visited only " << visited << " rings, not " << A << "; points: ";
         return 0;
     }
+
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+            cout << mov_grid[i][j] << " ";
+        }
+        cout << endl;
+    }
+    cout << endl;
+
     float points = 100 * (float(A) / float(B + W));
     if (!closed) {
         points *= 1.0 / 2;

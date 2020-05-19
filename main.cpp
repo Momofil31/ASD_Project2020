@@ -46,8 +46,7 @@ void updateAdjacentCells(int row, int col);
 
 void computeSolution();
 
-bool dfs(int row, int col, int index, int ringCount, const int *rowStart, const int *colStart, char *buffer,
-         int bufferSize);
+bool dfs(int row, int col, int index, int ringCount, const int *rowStart, const int *colStart, char *buffer, int bufferSize);
 
 void printPath(int ringsCount, int pathSize, int startRow, int starCol, char *buffer);
 
@@ -258,96 +257,131 @@ void printPath(int ringsCount, int pathSize, int startRow, int starCol, char *bu
     cout << "#" << endl;
 }
 
-bool dfs(int row, int col, int index, int ringCount, const int *rowStart, const int *colStart, char *buffer,
-         int bufferSize) {
-    //Back home
+bool dfs(int row, int col, int index, int ringCount, const int *rowStart, const int *colStart, char *buffer, int bufferSize) {
+    unsigned char lastDirection = CELL_EMPTY;
+    if (index > 0) {
+        switch (buffer[index - 1]) {
+        case 'U':
+            lastDirection = WALL_UP;
+            break;
+        case 'D':
+            lastDirection = WALL_DOWN;
+            break;
+        case 'R':
+            lastDirection = WALL_RIGHT;
+            break;
+        case 'L':
+            lastDirection = WALL_LEFT;
+            break;
+        }
+    }
+
+    // Back home
     if (row == *rowStart && col == *colStart && index > 0) {
         if (ringCount >= W_WHITE + B_BLACK) {
-            //THE END GAME
+            // THE END GAME
             printPath(ringCount, index, *rowStart, *colStart, buffer);
             totalScore = 99999;
         }
         return true;
     }
 
-    //exceed buffer
+    // exceed buffer
     if (index > bufferSize - 2) {
         return false;
     }
 
-    //check cell is a ring
+    // check cell is a ring
     if (starMap[row][col] & CELL_BLACK || starMap[row][col] & CELL_WHITE) {
         ringCount++;
-        //new ring, checkpoint
+        // new ring, checkpoint
         if (ringCount > totalScore) {
             totalScore = ringCount;
             printPath(ringCount, index, *rowStart, *colStart, buffer);
         }
     }
 
-
     int numWays = 0;
     unsigned char availableDirection = CELL_EMPTY;
-    //up
-    if (!(starMap[row][col] & WALL_UP) && (!(starMap[row - 1][col] & CELL_VISITED) ||
-                                           (ringCount == TOTAL_RINGS && *rowStart == row - 1 && *colStart == col))) {
-        availableDirection |= WALL_UP;
-        numWays++;
+    // up
+    if (!(starMap[row][col] & WALL_UP) &&
+        (!(starMap[row - 1][col] & CELL_VISITED) || (ringCount == TOTAL_RINGS && *rowStart == row - 1 && *colStart == col))) {
+
+        if ((lastDirection == CELL_EMPTY) || ((starMap[row][col] & CELL_BLACK) && !(lastDirection & WALL_UP)) ||
+            ((starMap[row][col] & CELL_WHITE) && (lastDirection & WALL_UP)) || !(starMap[row][col] & CELL_WHITE) ||
+            (starMap[row][col] & CELL_BLACK)) {
+            availableDirection |= WALL_UP;
+            numWays++;
+        }
     }
-    //right
-    if (!(starMap[row][col] & WALL_RIGHT) && (!(starMap[row][col + 1] & CELL_VISITED) ||
-                                              (ringCount == TOTAL_RINGS && *rowStart == row && *colStart == col + 1))) {
-        availableDirection |= WALL_RIGHT;
-        numWays++;
+    // right
+    if (!(starMap[row][col] & WALL_RIGHT) &&
+        (!(starMap[row][col + 1] & CELL_VISITED) || (ringCount == TOTAL_RINGS && *rowStart == row && *colStart == col + 1))) {
+
+        if ((lastDirection == CELL_EMPTY) || ((starMap[row][col] & CELL_BLACK) && !(lastDirection & WALL_RIGHT)) ||
+            ((starMap[row][col] & CELL_WHITE) && (lastDirection & WALL_RIGHT)) || !(starMap[row][col] & CELL_WHITE) ||
+            (starMap[row][col] & CELL_BLACK)) {
+            availableDirection |= WALL_RIGHT;
+            numWays++;
+        }
     }
-    //down
-    if (!(starMap[row][col] & WALL_DOWN) && (!(starMap[row + 1][col] & CELL_VISITED) ||
-                                             (ringCount == TOTAL_RINGS && *rowStart == row + 1 && *colStart == col))) {
-        availableDirection |= WALL_DOWN;
-        numWays++;
+    // down
+    if (!(starMap[row][col] & WALL_DOWN) &&
+        (!(starMap[row + 1][col] & CELL_VISITED) || (ringCount == TOTAL_RINGS && *rowStart == row + 1 && *colStart == col))) {
+        if ((lastDirection == CELL_EMPTY) || ((starMap[row][col] & CELL_BLACK) && !(lastDirection & WALL_DOWN)) ||
+            ((starMap[row][col] & CELL_WHITE) && (lastDirection & WALL_DOWN)) || !(starMap[row][col] & CELL_WHITE) ||
+            (starMap[row][col] & CELL_BLACK)) {
+            availableDirection |= WALL_DOWN;
+            numWays++;
+        }
     }
-    //left
-    if (!(starMap[row][col] & WALL_LEFT) && (!(starMap[row][col - 1] & CELL_VISITED) ||
-                                             (ringCount == TOTAL_RINGS && *rowStart == row && *colStart == col - 1))) {
-        availableDirection |= WALL_LEFT;
-        numWays++;
+    // left
+    if (!(starMap[row][col] & WALL_LEFT) &&
+        (!(starMap[row][col - 1] & CELL_VISITED) || (ringCount == TOTAL_RINGS && *rowStart == row && *colStart == col - 1))) {
+
+        if ((lastDirection == CELL_EMPTY) || ((starMap[row][col] & CELL_BLACK) && !(lastDirection & WALL_LEFT)) ||
+            ((starMap[row][col] & CELL_WHITE) && (lastDirection & WALL_LEFT)) || !(starMap[row][col] & CELL_WHITE) ||
+            (starMap[row][col] & CELL_BLACK)) {
+            availableDirection |= WALL_LEFT;
+            numWays++;
+        }
     }
 
     // sono in un vicolo cieco
     if (numWays == 0) {
+        // cout << "vicolo cieco" << endl;
         return false;
-        }
+    }
 
-    //DFS
-        starMap[row][col] |= CELL_VISITED;
-    bool isDfsEnd= false;
-    //up
+    // DFS
+    starMap[row][col] |= CELL_VISITED;
+    bool isDfsEnd = false;
+    // up
     if (availableDirection & WALL_UP) {
         buffer[index] = 'U';
         isDfsEnd = dfs(row - 1, col, index + 1, ringCount, rowStart, colStart, buffer, bufferSize);
         starMap[row][col] &= CELL_NOT_VISITED;
-        }
-    //right
+    }
+    // right
     if (!isDfsEnd && availableDirection & WALL_RIGHT) {
         buffer[index] = 'R';
         isDfsEnd = dfs(row, col + 1, index + 1, ringCount, rowStart, colStart, buffer, bufferSize);
         starMap[row][col] &= CELL_NOT_VISITED;
-        }
-    //down
+    }
+    // down
     if (!isDfsEnd && availableDirection & WALL_DOWN) {
         buffer[index] = 'D';
         isDfsEnd = dfs(row + 1, col, index + 1, ringCount, rowStart, colStart, buffer, bufferSize);
         starMap[row][col] &= CELL_NOT_VISITED;
-        }
-    //left
+    }
+    // left
     if (!isDfsEnd && availableDirection & WALL_LEFT) {
         buffer[index] = 'L';
         isDfsEnd = dfs(row, col - 1, index + 1, ringCount, rowStart, colStart, buffer, bufferSize);
         starMap[row][col] &= CELL_NOT_VISITED;
-        }
+    }
 
     return isDfsEnd;
-
 }
 
 void computeSolution() {
