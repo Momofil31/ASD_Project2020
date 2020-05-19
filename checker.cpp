@@ -4,6 +4,8 @@ using namespace std;
 int N, M, B, W;
 char grid[257][257];
 
+void printString(int A, int L, int r, int c, string movements) { cout << A << " " << L << " " << r << " " << c << " " << movements << endl; }
+
 float calculate_points(string line) {
     stringstream sline;
     sline.str(line);
@@ -11,6 +13,7 @@ float calculate_points(string line) {
     string movements;
     sline >> A >> L >> r >> c >> movements;
     if (movements.size() - 1 != L) {
+        printString(A, L, r, c, movements);
         cout << "Expected " << L << " moves, found " << movements.size() - 1 << "; points: ";
         return 0;
     }
@@ -30,7 +33,8 @@ float calculate_points(string line) {
     for (auto chr : movements) {
         if (chr == '#') {
             if (num != L) {
-                cout << "Found # character not at the end; points: ";
+                cout << "Found # character not at the end; cell: " << y << " " << x;
+                cout << " points: ";
                 return 0;
             }
             break;
@@ -48,7 +52,9 @@ float calculate_points(string line) {
                 if (num == 2)
                     second_white = false;
             } else if (!second_white) {
-                cout << "Direction not changed before or after W; points: ";
+                printString(A, L, r, c, movements);
+                cout << "Direction not changed before or after W; cell: " << y << " " << x;
+                cout << " points: ";
                 return 0;
             }
         }
@@ -57,7 +63,9 @@ float calculate_points(string line) {
                 if (old_direction != direction) {
                     visited++;
                 } else {
-                    cout << "Direction not changed on B; points: ";
+                    printString(A, L, r, c, movements);
+                    cout << "Direction not changed on B; cell: " << y << " " << x;
+                    cout << "  points: ";
                     return 0;
                 }
             } else if (grid[y][x] == 'W') {
@@ -70,7 +78,9 @@ float calculate_points(string line) {
                         last_W = true;
                     }
                 } else {
-                    cout << "Direction changed on W; points: ";
+                    printString(A, L, r, c, movements);
+                    cout << "Direction changed on W; cell: " << y << " " << x;
+                    cout << "  points: ";
                     return 0;
                 }
             }
@@ -96,6 +106,7 @@ float calculate_points(string line) {
             x++;
         }
         if (!(x < M && x >= 0) || !(y < N && y >= 0)) {
+            printString(A, L, r, c, movements);
             cout << "Out of map:(" << y << ", " << x << "); points: ";
             return 0;
         }
@@ -103,6 +114,7 @@ float calculate_points(string line) {
             if (num == L - 1 && y == r && x == c) {
                 closed = true;
             } else {
+                printString(A, L, r, c, movements);
                 cout << "Path intersecting at move: " << num << " in (" << y << ", " << x << "); points: ";
                 return 0;
             }
@@ -110,7 +122,9 @@ float calculate_points(string line) {
         num++;
     }
     if (last_W) {
-        cout << "Direction not changed before or after W; points: ";
+        printString(A, L, r, c, movements);
+        cout << "Direction not changed before or after W; cell: " << y << " " << x;
+        cout << "  points: ";
         return 0;
     }
     if (!closed) {
@@ -119,7 +133,9 @@ float calculate_points(string line) {
         if (grid[y][x] != '.')
             visited++;
         if (second_white) {
-            cout << "Direction not changed before or after W; points: ";
+            printString(A, L, r, c, movements);
+            cout << "Direction not changed before or after W; cell: " << y << " " << x;
+            cout << " points: ";
             return 0;
         }
     } else {
@@ -129,7 +145,9 @@ float calculate_points(string line) {
             } else if (direction == -1 && (mov_grid[r][c] == 'U' || mov_grid[r][c] == 'D')) {
                 visited++;
             } else {
-                cout << "Direction not changed on B; points: ";
+                printString(A, L, r, c, movements);
+                cout << "Direction not changed on B; cell: " << y << " " << x;
+                cout << "  points: ";
                 return 0;
             }
         } else if (grid[r][c] == 'W') {
@@ -140,7 +158,9 @@ float calculate_points(string line) {
             } else if ((movements[1] == 'U' || movements[1] == 'D') && (movements[0] == 'L' || movements[0] == 'R')) {
                 visited++;
             } else {
-                cout << "Direction not changed before or after W; points: ";
+                printString(A, L, r, c, movements);
+                cout << "Direction not changed before or after W; cell: " << y << " " << x;
+                cout << " points: ";
                 return 0;
             }
         }
@@ -150,7 +170,9 @@ float calculate_points(string line) {
             } else if (direction == -1 && (mov_grid[r][c] == 'U' || mov_grid[r][c] == 'D')) {
                 visited++;
             } else {
-                cout << "Direction not changed before or after W; points: ";
+                printString(A, L, r, c, movements);
+                cout << "Direction not changed before or after W; cell: " << y << " " << x;
+                cout << "  points: ";
                 return 0;
             }
         }
@@ -161,13 +183,13 @@ float calculate_points(string line) {
         return 0;
     }
 
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < M; j++) {
-            cout << mov_grid[i][j] << " ";
+    /*     for (int i = 0; i < N; i++) {
+            for (int j = 0; j < M; j++) {
+                cout << mov_grid[i][j] << " ";
+            }
+            cout << endl;
         }
-        cout << endl;
-    }
-    cout << endl;
+        cout << endl; */
 
     float points = 100 * (float(A) / float(B + W));
     if (!closed) {
