@@ -1,9 +1,7 @@
 #define DEBUG
 
 #ifndef DEBUG
-
 #include "swrace.h"
-
 #endif
 
 #include <fstream>
@@ -303,34 +301,6 @@ void preprocessMap() {
 }
 
 /**************************** SOLUTION ****************************/
-
-#ifdef DEBUG
-
-void printPath(int ringsCount, int pathSize, char *buffer) {
-    cout << ringsCount << " " << pathSize << " " << START_ROW << " " << START_COL << " ";
-    for (int i = 0; i < pathSize; ++i) {
-        cout << buffer[i];
-    }
-    cout << "#" << endl;
-}
-
-#endif //DEBUG
-
-#ifndef DEBUG
-
-void printPath(int ringsCount, int pathSize, char *buffer) {
-    ofstream out("output.txt", ofstream::app);
-    out << ringsCount << " " << pathSize << " " << START_ROW << " " << START_COL << " ";
-    for (int i = 0; i < pathSize; ++i) {
-        out << buffer[i];
-    }
-    out << "#" << endl;
-    out.close();
-}
-
-#endif //DEBUG
-
-
 void insertOutPathMap(int row, int col, unsigned char outMask) {
     pathMap[row][col] |= outMask;
     updateAdjacentCells(row, col);
@@ -460,12 +430,13 @@ bool dfs(int row, int col, int index, int ringCount, int lastWhiteIndex, int las
     bool onBlack = starMap[row][col] & CELL_BLACK;
     bool onWhite = starMap[row][col] & CELL_WHITE;
     unsigned char prevPathMapCell = getPrevPathMapCell(row, col);
+    unsigned char prevStarMapCell = getPrevStarMapCell(row, col);
 
     //RING COUNT CHECK
     if (onBlack || onWhite) {
         ringCount++;
         //new ring, checkpoint
-        if (ringCount > totalScore) {
+        if (ringCount > totalScore && !(prevStarMapCell & CELL_WHITE)) {
             totalScore = ringCount;
             printPath(ringCount, index, buffer);
             mapToJson();
@@ -561,9 +532,6 @@ void computeSolution() {
             break;
         }
     }
-#ifdef DEBUG
-    printf("starting from cell[%d][%d]\n", START_ROW, START_COL);
-#endif
     dfs(START_ROW, START_COL, 0, 0, -10, -10, buffer);
 }
 
@@ -694,6 +662,32 @@ void init() {
 
     in.close();
 }
+
+/**************************** OUTPUT ****************************/
+#ifdef DEBUG
+
+void printPath(int ringsCount, int pathSize, char *buffer) {
+    cout << ringsCount << " " << pathSize << " " << START_ROW << " " << START_COL << " ";
+    for (int i = 0; i < pathSize; ++i) {
+        cout << buffer[i];
+    }
+    cout << "#" << endl;
+}
+
+#endif //DEBUG
+
+#ifndef DEBUG
+void printPath(int ringsCount, int pathSize, char *buffer) {
+    ofstream out("output.txt", ofstream::app);
+    out << ringsCount << " " << pathSize << " " << START_ROW << " " << START_COL << " ";
+    for (int i = 0; i < pathSize; ++i) {
+        out << buffer[i];
+    }
+    out << "#" << endl;
+    out.close();
+}
+#endif //DEBUG
+
 
 void mapToJson() {
 #ifdef DEBUG
