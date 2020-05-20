@@ -404,7 +404,7 @@ unsigned char getAvailableDirection(int row, int col, int bufferIndex, int lastW
     return availableDirection;
 }
 
-int computeDistance(Coordinates &a, Coordinates &b) { return abs(a.row - b.row) + abs(a.col - b.col); }
+int computeDistance(Coordinates a, Coordinates b) { return abs(a.row - b.row) + abs(a.col - b.col); }
 
 Coordinates getNearestTarget(Coordinates start) {
     Coordinates nearestTarget = {-1, -1};
@@ -497,45 +497,54 @@ bool dfs(int row, int col, int targRow, int targCol, int index, int ringCount, i
         }
     }
 
-    // TODO: chose direction
+    // CHOSE DIRECTION THAT LEADS TO SHORTEST DISTANCE FROM TARGET
+    priority_queue<pair<int, unsigned char>, vector<pair<int, unsigned char>>, greater<pair<int, unsigned char>>> pq;
+
+    while (availableDirection != CELL_EMPTY) {
+        if (availableDirection & PATH_OUT_UP) {
+            pq.push(make_pair(PATH_OUT_UP, computeDistance({row - 1, col}, {targRow, targCol})));
+            availableDirection &= ~PATH_OUT_UP;
+        }
+        if (availableDirection & PATH_OUT_RIGHT) {
+            pq.push(make_pair(PATH_OUT_RIGHT, computeDistance({row, col + 1}, {targRow, targCol})));
+            availableDirection &= ~PATH_OUT_RIGHT;
+        }
+        if (availableDirection & PATH_OUT_DOWN) {
+            pq.push(make_pair(PATH_OUT_DOWN, computeDistance({row + 1, col}, {targRow, targCol})));
+            availableDirection &= ~PATH_OUT_DOWN;
+        }
+        if (availableDirection & PATH_OUT_LEFT) {
+            pq.push(make_pair(PATH_OUT_LEFT, computeDistance({row, col - 1}, {targRow, targCol})));
+            availableDirection &= ~PATH_OUT_LEFT;
+        }
+    }
 
     // DFS EXPLORATION
-    starMap[row][col] |= CELL_VISITED;
     bool isDfsEnd = false;
-    // up
-    if (availableDirection & PATH_OUT_UP) {
-        insertOutPathMap(row, col, PATH_OUT_UP);
 
-        buffer[index] = 'U';
-        isDfsEnd = dfs(row - 1, col, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+    while (!pq.empty()) {
+        pair<int, unsigned char> queueElement = pq.top();
+        pq.pop();
+        unsigned char direction = queueElement.second;
 
-        removeOutPathMap(row, col);
-    }
-    // right
-    if (!isDfsEnd && availableDirection & PATH_OUT_RIGHT) {
-        insertOutPathMap(row, col, PATH_OUT_RIGHT);
+        insertOutPathMap(row, col, direction);
 
-        buffer[index] = 'R';
-        isDfsEnd = dfs(row, col + 1, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
-
-        removeOutPathMap(row, col);
-    }
-    // down
-    if (!isDfsEnd && availableDirection & PATH_OUT_DOWN) {
-        insertOutPathMap(row, col, PATH_OUT_DOWN);
-
-        buffer[index] = 'D';
-        isDfsEnd = dfs(row + 1, col, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
-
-        removeOutPathMap(row, col);
-    }
-    // left
-    if (!isDfsEnd && availableDirection & PATH_OUT_LEFT) {
-        insertOutPathMap(row, col, PATH_OUT_LEFT);
-
-        buffer[index] = 'L';
-        isDfsEnd = dfs(row, col - 1, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
-
+        if (direction & PATH_OUT_UP) {
+            buffer[index] = 'U'; // TODO distinc for each direction
+            isDfsEnd = dfs(row - 1, col, targRow, targCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+        }
+        if (direction & PATH_OUT_RIGHT) {
+            buffer[index] = 'R';
+            isDfsEnd = dfs(row, col + 1, targRow, targCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+        }
+        if (direction & PATH_OUT_DOWN) {
+            buffer[index] = 'D';
+            isDfsEnd = dfs(row + 1, col, targRow, targCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+        }
+        if (direction & PATH_OUT_LEFT) {
+            buffer[index] = 'L';
+            isDfsEnd = dfs(row, col - 1, targRow, targCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+        }
         removeOutPathMap(row, col);
     }
 
