@@ -26,6 +26,7 @@ using namespace std;
 string INPUT_FILENAME = "input.txt";
 string OUTPUT_FILENAME = "output.txt";
 
+int MAX_DFS_DEPTH;
 int N_ROWS;
 int M_COLS;
 int B_BLACK;
@@ -88,7 +89,7 @@ void updateAdjacentCells(int row, int col);
 void computeSolution();
 
 bool dfs(int row, int col, int targRow, int targCol, int index, int ringCount, int lastWhiteIndex, int lastBlackIndex,
-         char *buffer);
+         char *buffer, int targetMaxDepth);
 
 void printPath(int ringsCount, int pathSize, char *buffer);
 
@@ -535,7 +536,16 @@ Coordinates getNearestTarget(Coordinates start) {
 }
 
 bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
-         int lastBlackIndex, char *buffer) {
+         int lastBlackIndex, char *buffer, int targetMaxDepth) {
+    if (targetMaxDepth < 0) {
+        #ifdef DEBUG
+//        cerr << "BREAK FOR TARGET MAX DEPTH" << endl;
+//        cout << "BREAK FOR TARGET MAX DEPTH" << endl;
+//        mapToJson();
+//        exit(1);
+        #endif
+        return false;
+    }
 
     bool onBlack = starMap[row][col] & CELL_BLACK;
     bool onWhite = starMap[row][col] & CELL_WHITE;
@@ -548,11 +558,13 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
         Coordinates target = getNearestTarget({row, col});
         targetRow = target.row;
         targetCol = target.col;
+        targetMaxDepth = MAX_DFS_DEPTH;
     }
     if ((targetRow == -1 && targetCol == -1) || targets.size() == 0) {
         // Go back home
         targetRow = START_ROW;
         targetCol = START_COL;
+        targetMaxDepth = MAX_DFS_DEPTH;
     }
 
     //RETURNED HOME WITH MAX SCORE
@@ -680,25 +692,25 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
             case PATH_OUT_UP:
                 buffer[index] = 'U';
                 isDfsEnd = dfs(row - 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
-                               buffer);
+                               buffer, targetMaxDepth - 1);
                 break;
 
             case PATH_OUT_RIGHT:
                 buffer[index] = 'R';
                 isDfsEnd = dfs(row, col + 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
-                               buffer);
+                               buffer, targetMaxDepth - 1);
                 break;
 
             case PATH_OUT_DOWN:
                 buffer[index] = 'D';
                 isDfsEnd = dfs(row + 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
-                               buffer);
+                               buffer, targetMaxDepth - 1);
                 break;
 
             case PATH_OUT_LEFT:
                 buffer[index] = 'L';
                 isDfsEnd = dfs(row, col - 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
-                               buffer);
+                               buffer, targetMaxDepth - 1);
                 break;
 
         }
@@ -740,7 +752,7 @@ void computeSolution() {
         int rowW = whiteRings[i].row;
         int colW = whiteRings[i].col;
 //        if (starMap[rowW][colW] & CELL_PREPROCESSED && isIsolatedCell(rowW, colW)) {
-        //TODO decide if isolated cell or not
+        //TODO decide if isolated cell or not, BETTER NO
         if (starMap[rowW][colW] & CELL_PREPROCESSED) {
             START_ROW = rowW;
             START_COL = colW;
@@ -768,7 +780,7 @@ void computeSolution() {
         targets.push_back(black);
     }
 
-    dfs(START_ROW, START_COL, START_ROW, START_COL, 0, 0, -10, -10, buffer);
+    dfs(START_ROW, START_COL, START_ROW, START_COL, 0, 0, -10, -10, buffer, MAX_DFS_DEPTH);
 }
 
 /**************************** MAP UTILS ****************************/
@@ -850,6 +862,9 @@ void init() {
 
     in >> N_ROWS >> M_COLS >> B_BLACK >> W_WHITE;
     TOTAL_RINGS = B_BLACK + W_WHITE;
+//    MAX_DFS_DEPTH = (int) max(N_ROWS, M_COLS);
+    MAX_DFS_DEPTH = (int) N_ROWS+ M_COLS;
+
     // build starMap
     starMap = new unsigned char *[N_ROWS];
     pathMap = new unsigned char *[N_ROWS];
