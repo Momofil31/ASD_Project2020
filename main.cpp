@@ -1,16 +1,30 @@
-#define DEBUG
+//#define UPLOAD_TO_JUDGE
 
-#ifndef DEBUG
+
+#ifdef UPLOAD_TO_JUDGE
 #include "swrace.h"
 #endif
 
-#include <cmath>
+#ifndef UPLOAD_TO_JUDGE
+
+#define DEBUG //print debug
+//#define MULTI_FILE_TEST // test on multiple files
+
+#endif
+
+
 #include <fstream>
 #include <iostream>
 #include <queue>
 #include <vector>
+#include <list>
+#include <climits>
+
 
 using namespace std;
+
+string INPUT_FILENAME = "input.txt";
+string OUTPUT_FILENAME = "output.txt";
 
 int N_ROWS;
 int M_COLS;
@@ -31,12 +45,13 @@ struct Coordinates {
 unsigned char **starMap;
 vector<Coordinates> blackRings;
 vector<Coordinates> whiteRings;
-vector<Coordinates> targets;
+list<Coordinates> targets;
 
 const unsigned char CELL_EMPTY = 0b00000000;
 const unsigned char CELL_VISITED = 0b10000000;
 const unsigned char CELL_BLACK = 0b01000000;
 const unsigned char CELL_WHITE = 0b00100000;
+const unsigned char CELL_WHITE_OR_BLACK = CELL_BLACK | CELL_WHITE;
 const unsigned char CELL_PREPROCESSED = 0b00010000;
 const unsigned char WALL_UP = 0b00001000;
 const unsigned char WALL_RIGHT = 0b00000100;
@@ -56,10 +71,10 @@ const unsigned char PATH_OUT_RIGHT = 0b00000100;
 const unsigned char PATH_OUT_DOWN = 0b00000010;
 const unsigned char PATH_OUT_LEFT = 0b00000001;
 
-const unsigned char PATH_OUT_ALL = 0b00001111; // only out bits
-const unsigned char PATH_NO_IN = 0b00001111;   // only out bits
-const unsigned char PATH_IN_ALL = 0b11110000;  // only in bits
-const unsigned char PATH_NO_OUT = 0b11110000;  // only in bits
+const unsigned char PATH_OUT_ALL = 0b00001111; //only out bits
+const unsigned char PATH_NO_IN = 0b00001111; //only out bits
+const unsigned char PATH_IN_ALL = 0b11110000; //only in bits
+const unsigned char PATH_NO_OUT = 0b11110000; //only in bits
 
 // FUNCTIONS
 void init();
@@ -72,13 +87,27 @@ void updateAdjacentCells(int row, int col);
 
 void computeSolution();
 
-bool dfs(int row, int col, int targRow, int targCol, int index, int ringCount, int lastWhiteIndex, int lastBlackIndex, char *buffer);
+bool dfs(int row, int col, int targRow, int targCol, int index, int ringCount, int lastWhiteIndex, int lastBlackIndex,
+         char *buffer);
 
 void printPath(int ringsCount, int pathSize, char *buffer);
 
 void mapToJson();
 
 int main() {
+
+#ifdef MULTI_FILE_TEST
+    //keep this log, no submit with multi file enable
+    cout << "MULTI FILE TESTING!!!" << endl;
+    for (int i = 0; i < 5; ++i) {
+        INPUT_FILENAME = "input" + std::to_string(i) + ".txt";
+        OUTPUT_FILENAME = "output" + std::to_string(i) + ".txt";
+
+        time_t start, end;
+        start = clock();
+        cout << "Testing file " << i << endl;
+#endif
+
     init();
 
     preprocessMap();
@@ -87,6 +116,13 @@ int main() {
 
     computeSolution();
 
+#ifdef MULTI_FILE_TEST
+    end = clock();
+    cout << "\nRunning:\t" << ((double) (end - start)) / CLOCKS_PER_SEC << "sec" << endl << endl;
+
+}
+#endif
+    cout << "SUGO" << endl;
     return 0;
 }
 
@@ -102,7 +138,7 @@ void preprocessBlackRings() {
             // Heuristic 1: distance from border <=1
             // up border
             if (row <= 1) {
-                // up wall
+                //up wall
                 starMap[row][col] |= WALL_UP;
                 updateAdjacentCells(row, col);
 
@@ -115,7 +151,7 @@ void preprocessBlackRings() {
 
             // right border
             if (col >= M_COLS - 2) {
-                // right wall
+                //right wall
                 starMap[row][col] |= WALL_RIGHT;
                 updateAdjacentCells(row, col);
 
@@ -128,7 +164,7 @@ void preprocessBlackRings() {
 
             // down border
             if (row >= N_ROWS - 2) {
-                // down wall
+                //down wall
                 starMap[row][col] |= WALL_DOWN;
                 updateAdjacentCells(row, col);
 
@@ -141,7 +177,7 @@ void preprocessBlackRings() {
 
             // left border
             if (col <= 1) {
-                // left wall
+                //left wall
                 starMap[row][col] |= WALL_LEFT;
                 updateAdjacentCells(row, col);
 
@@ -156,7 +192,7 @@ void preprocessBlackRings() {
             // check only down and right
             // down
             if (checkBounds(row + 1, col) && starMap[row + 1][col] & CELL_BLACK) {
-                // between 2 dots
+                //between 2 dots
                 starMap[row][col] |= WALL_DOWN;
                 updateAdjacentCells(row, col);
                 // up straight
@@ -172,7 +208,7 @@ void preprocessBlackRings() {
             }
             // right
             if (checkBounds(row, col + 1) && starMap[row][col + 1] & CELL_BLACK) {
-                // between 2 dots
+                //between 2 dots
                 starMap[row][col] |= WALL_RIGHT;
                 updateAdjacentCells(row, col);
                 // left straight
@@ -189,7 +225,8 @@ void preprocessBlackRings() {
 
             // Heuristic 5: two white next to black in an oblique angle
             // up
-            if (checkBounds(row - 1, col - 1) && starMap[row - 1][col - 1] & CELL_WHITE && checkBounds(row - 1, col + 1) &&
+            if (checkBounds(row - 1, col - 1) && starMap[row - 1][col - 1] & CELL_WHITE &&
+                checkBounds(row - 1, col + 1) &&
                 starMap[row - 1][col + 1] & CELL_WHITE) {
                 // down straight
                 starMap[row + 1][col] |= WALL_LEFT;
@@ -198,7 +235,8 @@ void preprocessBlackRings() {
                 updateAdjacentCells(row + 1, col);
             }
             // right
-            if (checkBounds(row - 1, col + 1) && starMap[row - 1][col + 1] & CELL_WHITE && checkBounds(row + 1, col + 1) &&
+            if (checkBounds(row - 1, col + 1) && starMap[row - 1][col + 1] & CELL_WHITE &&
+                checkBounds(row + 1, col + 1) &&
                 starMap[row + 1][col + 1] & CELL_WHITE) {
                 // left straight
                 starMap[row][col - 1] |= WALL_UP;
@@ -207,7 +245,8 @@ void preprocessBlackRings() {
                 updateAdjacentCells(row, col - 1);
             }
             // down
-            if (checkBounds(row + 1, col - 1) && starMap[row + 1][col - 1] & CELL_WHITE && checkBounds(row + 1, col + 1) &&
+            if (checkBounds(row + 1, col - 1) && starMap[row + 1][col - 1] & CELL_WHITE &&
+                checkBounds(row + 1, col + 1) &&
                 starMap[row + 1][col + 1] & CELL_WHITE) {
                 // up straight
                 starMap[row - 1][col] |= WALL_LEFT;
@@ -216,7 +255,8 @@ void preprocessBlackRings() {
                 updateAdjacentCells(row - 1, col);
             }
             // left
-            if (checkBounds(row - 1, col - 1) && starMap[row - 1][col - 1] & CELL_WHITE && checkBounds(row + 1, col - 1) &&
+            if (checkBounds(row - 1, col - 1) && starMap[row - 1][col - 1] & CELL_WHITE &&
+                checkBounds(row + 1, col - 1) &&
                 starMap[row + 1][col - 1] & CELL_WHITE) {
                 // right straight
                 starMap[row][col + 1] |= WALL_UP;
@@ -268,14 +308,16 @@ void preprocessWhiteRings() {
                 // check only 2 right and 2 down,
                 // update only current, to the other there is the while to update with walls
                 // down
-                if (checkBounds(row + 2, col) && starMap[row + 2][col] & CELL_WHITE && starMap[row + 1][col] & CELL_WHITE) {
+                if (checkBounds(row + 2, col) && starMap[row + 2][col] & CELL_WHITE &&
+                    starMap[row + 1][col] & CELL_WHITE) {
                     starMap[row][col] |= WALL_UP;
                     starMap[row][col] |= WALL_DOWN;
                     starMap[row][col] |= CELL_PREPROCESSED;
                     needOneMoreCycle = true;
                 }
                 // right
-                if (checkBounds(row, col + 2) && starMap[row][col + 2] & CELL_WHITE && starMap[row][col + 1] & CELL_WHITE) {
+                if (checkBounds(row, col + 2) && starMap[row][col + 2] & CELL_WHITE &&
+                    starMap[row][col + 1] & CELL_WHITE) {
                     starMap[row][col] |= WALL_RIGHT;
                     starMap[row][col] |= WALL_LEFT;
                     starMap[row][col] |= CELL_PREPROCESSED;
@@ -307,22 +349,47 @@ void removeOutPathMap(int row, int col) {
     updateAdjacentCells(row, col);
 }
 
-bool isStartCell(int row, int col) { return row == START_ROW && col == START_COL; }
+bool isStartCell(int row, int col) {
+    return row == START_ROW && col == START_COL;
+}
+
+bool isIsolatedCell(int row, int col) {
+    bool neighbour = false;
+    //up
+    if (checkBounds(row - 1, col)) {
+        neighbour |= (starMap[row - 1][col] & CELL_WHITE_OR_BLACK) != 0;
+    }
+    //right
+    if (checkBounds(row, col + 1)) {
+        neighbour |= (starMap[row][col + 1] & CELL_WHITE_OR_BLACK) != 0;
+    }
+    //down
+    if (checkBounds(row + 1, col)) {
+        neighbour |= (starMap[row + 1][col] & CELL_WHITE_OR_BLACK) != 0;
+    }
+    //left
+    if (checkBounds(row, col - 1)) {
+        neighbour |= (starMap[row][col - 1] & CELL_WHITE_OR_BLACK) != 0;
+    }
+
+    return !neighbour;
+
+}
 
 unsigned char getPrevStarMapCell(int row, int col) {
-    // arrived from up
+    //arrived from up
     if (checkBounds(row - 1, col) && pathMap[row][col] & PATH_IN_UP) {
         return starMap[row - 1][col];
     }
-    // arrived from right
+    //arrived from right
     if (checkBounds(row, col + 1) && pathMap[row][col] & PATH_IN_RIGHT) {
         return starMap[row][col + 1];
     }
-    // arrived from down
+    //arrived from down
     if (checkBounds(row + 1, col) && pathMap[row][col] & PATH_IN_DOWN) {
         return starMap[row + 1][col];
     }
-    // arrived from left
+    //arrived from left
     if (checkBounds(row, col - 1) && pathMap[row][col] & PATH_IN_LEFT) {
         return starMap[row][col - 1];
     }
@@ -334,19 +401,19 @@ unsigned char getPrevStarMapCell(int row, int col) {
 }
 
 unsigned char getPrevPathMapCell(int row, int col) {
-    // arrived from up
+    //arrived from up
     if (checkBounds(row - 1, col) && pathMap[row][col] & PATH_IN_UP) {
         return pathMap[row - 1][col];
     }
-    // arrived from right
+    //arrived from right
     if (checkBounds(row, col + 1) && pathMap[row][col] & PATH_IN_RIGHT) {
         return pathMap[row][col + 1];
     }
-    // arrived from down
+    //arrived from down
     if (checkBounds(row + 1, col) && pathMap[row][col] & PATH_IN_DOWN) {
         return pathMap[row + 1][col];
     }
-    // arrived from left
+    //arrived from left
     if (checkBounds(row, col - 1) && pathMap[row][col] & PATH_IN_LEFT) {
         return pathMap[row][col - 1];
     }
@@ -357,47 +424,82 @@ unsigned char getPrevPathMapCell(int row, int col) {
     return CELL_EMPTY;
 }
 
+unsigned char getNextPathMapCell(int row, int col) {
+    //exit up
+    if (checkBounds(row - 1, col) && pathMap[row][col] & PATH_OUT_UP) {
+        return pathMap[row - 1][col];
+    }
+    //exit right
+    if (checkBounds(row, col + 1) && pathMap[row][col] & PATH_OUT_RIGHT) {
+        return pathMap[row][col + 1];
+    }
+    //exit down
+    if (checkBounds(row + 1, col) && pathMap[row][col] & PATH_OUT_DOWN) {
+        return pathMap[row + 1][col];
+    }
+    //exit left
+    if (checkBounds(row, col - 1) && pathMap[row][col] & PATH_OUT_LEFT) {
+        return pathMap[row][col - 1];
+    }
+
+#ifdef DEBUG
+    cerr << "NEXT CELL NOT FOUND" << endl;
+#endif
+    return CELL_EMPTY;
+}
+
 unsigned char getAvailableDirection(int row, int col, int bufferIndex, int lastWhiteBufferIndex, int ringCount) {
     bool onBlack = starMap[row][col] & CELL_BLACK;
     bool onWhite = starMap[row][col] & CELL_WHITE;
     unsigned char prevPathMapCell = getPrevPathMapCell(row, col);
 
-    // CHOSE DIRECTION ACCORDING TO WALL AND VISITED
+
+    //CHOSE DIRECTION ACCORDING TO WALL AND VISITED
     unsigned char availableDirection = CELL_EMPTY;
-    // up
-    if (!(starMap[row][col] & WALL_UP) && (!(starMap[row - 1][col] & CELL_VISITED) || (ringCount == TOTAL_RINGS && isStartCell(row - 1, col)))) {
+    //up
+    if (!(starMap[row][col] & WALL_UP) && (!(starMap[row - 1][col] & CELL_VISITED) ||
+                                           (ringCount == TOTAL_RINGS && isStartCell(row - 1, col)))) {
         availableDirection |= PATH_OUT_UP;
     }
-    // right
-    if (!(starMap[row][col] & WALL_RIGHT) && (!(starMap[row][col + 1] & CELL_VISITED) || (ringCount == TOTAL_RINGS && isStartCell(row, col + 1)))) {
+    //right
+    if (!(starMap[row][col] & WALL_RIGHT) && (!(starMap[row][col + 1] & CELL_VISITED) ||
+                                              (ringCount == TOTAL_RINGS && isStartCell(row, col + 1)))) {
         availableDirection |= PATH_OUT_RIGHT;
     }
-    // down
-    if (!(starMap[row][col] & WALL_DOWN) && (!(starMap[row + 1][col] & CELL_VISITED) || (ringCount == TOTAL_RINGS && isStartCell(row + 1, col)))) {
+    //down
+    if (!(starMap[row][col] & WALL_DOWN) && (!(starMap[row + 1][col] & CELL_VISITED) ||
+                                             (ringCount == TOTAL_RINGS && isStartCell(row + 1, col)))) {
         availableDirection |= PATH_OUT_DOWN;
     }
-    // left
-    if (!(starMap[row][col] & WALL_LEFT) && (!(starMap[row][col - 1] & CELL_VISITED) || (ringCount == TOTAL_RINGS && isStartCell(row, col - 1)))) {
+    //left
+    if (!(starMap[row][col] & WALL_LEFT) && (!(starMap[row][col - 1] & CELL_VISITED) ||
+                                             (ringCount == TOTAL_RINGS && isStartCell(row, col - 1)))) {
         availableDirection |= PATH_OUT_LEFT;
     }
 
-    // CLEAN POSSIBILITIES ACCORDING TO GAME RULES
-    // black rules
+    //FIRST CELL IGNORE RULES
+    if (bufferIndex == 0) {
+        return availableDirection;
+    }
+
+
+    //CLEAN POSSIBILITIES ACCORDING TO GAME RULES
+    //black rules
     if (onBlack) {
-        // no out as the prev cell
+        //no out as the prev cell
         availableDirection &= ~(prevPathMapCell & PATH_OUT_ALL);
     }
 
-    // white rules
+    //white rules
     if (onWhite && bufferIndex > 0) {
-        // on white, no change of direction. Keep the same of prev cell
+        //on white, no change of direction. Keep the same of prev cell
         availableDirection &= (prevPathMapCell & PATH_OUT_ALL);
     }
 
-    // ALL CELL RULES
+    //ALL CELL RULES
     // if the cell behind me is white (with index check) go straight
     if (bufferIndex - lastWhiteBufferIndex == 1) {
-        // distance from white is 1 only possibility thisOutPath != prevOutPath
+        //distance from white is 1 only possibility thisOutPath != prevOutPath
         availableDirection &= ~(prevPathMapCell & PATH_OUT_ALL);
     }
 
@@ -406,93 +508,132 @@ unsigned char getAvailableDirection(int row, int col, int bufferIndex, int lastW
 
 int computeDistance(Coordinates a, Coordinates b) { return abs(a.row - b.row) + abs(a.col - b.col); }
 
+bool isCoordCellVisited(Coordinates const &cell) {
+    return (starMap[cell.row][cell.col] & CELL_VISITED) != 0; // need this !=0
+}
+
 Coordinates getNearestTarget(Coordinates start) {
     Coordinates nearestTarget = {-1, -1};
-    int distanceSoFar = INT_MAX;
+    int minDistance = INT_MAX;
 
-    // removing visited targets
-    remove_if(targets.begin(), targets.end(),
-              [](Coordinates const &target) { return (starMap[target.row][target.col] & CELL_VISITED) ? true : false; });
+    //remove visited ring cell
+    targets.remove_if(isCoordCellVisited);
 
-    for (auto &target : targets) {
-        int distance = computeDistance(start, target);
-        if (computeDistance(start, target) < distanceSoFar) {
-            distanceSoFar = distance;
-            nearestTarget = target;
+    for (Coordinates &target : targets) {
+        if (!isCoordCellVisited(target)) {
+            int distance = computeDistance(start, target);
+            if (distance < minDistance) {
+                minDistance = distance;
+                nearestTarget = target;
+            }
+        } else {
+            cerr << "Error in remove if" << endl;
         }
     }
+
     return nearestTarget;
 }
 
-// aggiungere due parametri row e col del target, se row e col del target sono -1 devo fare ricerca su anello non visitato e trovare il più vicino a
-// me vector di coord quando inizializzo bianco e nero metto dentro a questa lista sul vettore e trovo l'anello non visitato più vicino con dist
-// manhattan  se trovo un visitato lo elimino in compute solution, trovo il target più vicino
-
-// faccio partire la ricorsione, se ho target -1 faccio ricerca di un nuovo target
-// se target è popolato e ci sono sopra ne cerco un altro
-// se è popolato e non ci sono sopra devo andare nella direzione più vicina al target
-// se sono su un anello e quello era l'ultimo da visitare, metto come target start e torno a casa
-
-bool dfs(int row, int col, int targRow, int targCol, int index, int ringCount, int lastWhiteIndex, int lastBlackIndex, char *buffer) {
-    if ((targRow == -1 && targCol == -1) || (row == targRow && col == targCol)) {
-        Coordinates target = getNearestTarget({row, col});
-        targRow = target.row;
-        targCol = target.col;
-    }
-    if (targets.size() == 0) {
-        // TODO: impostare come target la cella di partenza
-        targRow = START_ROW;
-        targCol = START_COL;
-    }
-
-    // RETURNED HOME WITH MAX SCORE
-    if (isStartCell(row, col) && index > 0) {
-        if (ringCount >= TOTAL_RINGS) {
-            // THE END GAME
-            printPath(ringCount, index, buffer);
-            mapToJson();
-            totalScore = 999999;
-        }
-        return true;
-    }
+bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
+         int lastBlackIndex, char *buffer) {
 
     bool onBlack = starMap[row][col] & CELL_BLACK;
     bool onWhite = starMap[row][col] & CELL_WHITE;
     unsigned char prevPathMapCell = getPrevPathMapCell(row, col);
     unsigned char prevStarMapCell = getPrevStarMapCell(row, col);
 
-    // RING COUNT CHECK
+    starMap[row][col] |= CELL_VISITED;
+
+    if ((targetRow == -1 && targetCol == -1) || (row == targetRow && col == targetCol)) {
+        Coordinates target = getNearestTarget({row, col});
+        targetRow = target.row;
+        targetCol = target.col;
+    }
+    if ((targetRow == -1 && targetCol == -1) || targets.size() == 0) {
+        // Go back home
+        targetRow = START_ROW;
+        targetCol = START_COL;
+    }
+
+    //RETURNED HOME WITH MAX SCORE
+    if (isStartCell(row, col) && index > 0 && ringCount >= TOTAL_RINGS) {
+        //check home white end rule
+        unsigned char nextPathMapCell = getNextPathMapCell(row, col);
+
+        //if on black
+        // prevIn == currentIN && nextOut == currentOut
+        bool validExit = onBlack &&
+                         ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
+                         ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0);
+        //if on a white,
+        // enterPrev != enterCurrent OR exitNext != exitCurrent
+        validExit |= onWhite &&
+                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
+                     ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0);
+
+        if (validExit) {
+            //THE END GAME
+            printPath(ringCount, index, buffer);
+            mapToJson();
+            totalScore = 999999;
+            return true;
+        }
+    }
+
+
+    //RING COUNT CHECK
     if (onBlack || onWhite) {
         ringCount++;
-        // new ring, checkpoint
-        if (ringCount > totalScore && !(prevStarMapCell & CELL_WHITE)) {
+    }
+
+    //new ring, checkpoint
+    if (ringCount > totalScore) {
+        //open path ends in black
+        // prevIn == currentIN && nextOut == currentOut
+        bool validExit = onBlack &&
+                         ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0);
+        //open path ends in white,
+        // enterPrev != enterCurrent OR exitNext != exitCurrent
+        validExit |= onWhite &&
+                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0);
+
+        //not on white or black every move is ok
+        validExit |= !onWhite && !onBlack;
+
+        if (validExit) {
             totalScore = ringCount;
             printPath(ringCount, index, buffer);
             mapToJson();
         }
     }
 
-    // PRELIMINARY CHECKS
+
+
+    //PRELIMINARY CHECKS
     // 1) I am on black, prev tile has straight path?
     // 1) correct is prevInPath == thisInPath
-    if (onBlack) {
+    //TODO SKIP FIRST CELL CHECK(?)
+    if (onBlack && index > 1) {
         if ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) {
-            // prev and current in path not matching
+            //prev and current in path not matching
+            starMap[row][col] &= CELL_NOT_VISITED;
             return false;
         }
     }
 
-    // PATH DECISION
+    //PATH DECISION
     unsigned char availableDirection = getAvailableDirection(row, col, index, lastWhiteIndex, ringCount);
 
     // blind spot, return
     if (availableDirection == 0) {
+        starMap[row][col] &= CELL_NOT_VISITED;
         return false;
     }
 
-    // update white with this if I am on white
+    //update white with this if I am on white and I need to change direction in next cell
     if (onWhite) {
-        if (index == 0 || (prevPathMapCell & pathMap[row][col] & PATH_IN_ALL)) {
+        //TODO SKIP CHECK ON FIRST CELL(?)
+        if (index != 0 && (prevPathMapCell & pathMap[row][col] & PATH_IN_ALL)) {
             lastWhiteIndex = index;
         }
     }
@@ -500,70 +641,106 @@ bool dfs(int row, int col, int targRow, int targCol, int index, int ringCount, i
     // CHOSE DIRECTION THAT LEADS TO SHORTEST DISTANCE FROM TARGET
     priority_queue<pair<int, unsigned char>, vector<pair<int, unsigned char>>, greater<pair<int, unsigned char>>> pq;
 
-    while (availableDirection != CELL_EMPTY) {
-        if (availableDirection & PATH_OUT_UP) {
-            pq.push(make_pair(PATH_OUT_UP, computeDistance({row - 1, col}, {targRow, targCol})));
-            availableDirection &= ~PATH_OUT_UP;
-        }
-        if (availableDirection & PATH_OUT_RIGHT) {
-            pq.push(make_pair(PATH_OUT_RIGHT, computeDistance({row, col + 1}, {targRow, targCol})));
-            availableDirection &= ~PATH_OUT_RIGHT;
-        }
-        if (availableDirection & PATH_OUT_DOWN) {
-            pq.push(make_pair(PATH_OUT_DOWN, computeDistance({row + 1, col}, {targRow, targCol})));
-            availableDirection &= ~PATH_OUT_DOWN;
-        }
-        if (availableDirection & PATH_OUT_LEFT) {
-            pq.push(make_pair(PATH_OUT_LEFT, computeDistance({row, col - 1}, {targRow, targCol})));
-            availableDirection &= ~PATH_OUT_LEFT;
-        }
+    //up
+    if (availableDirection & PATH_OUT_UP) {
+        int dist = computeDistance({row - 1, col}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_UP));
     }
 
-    // DFS EXPLORATION
+    //right
+    if (availableDirection & PATH_OUT_RIGHT) {
+        int dist = computeDistance({row, col + 1}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_RIGHT));
+    }
+
+    //down
+    if (availableDirection & PATH_OUT_DOWN) {
+        int dist = computeDistance({row + 1, col}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_DOWN));
+    }
+
+    //left
+    if (availableDirection & PATH_OUT_LEFT) {
+        int dist = computeDistance({row, col - 1}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_LEFT));
+    }
+
+
+    //DFS EXPLORATION
     bool isDfsEnd = false;
 
-    while (!pq.empty()) {
-        pair<int, unsigned char> queueElement = pq.top();
+    while (!isDfsEnd && !pq.empty()) {
+        //best decision
+        unsigned char bestDirection = pq.top().second;
         pq.pop();
-        unsigned char direction = queueElement.second;
 
-        insertOutPathMap(row, col, direction);
+        insertOutPathMap(row, col, bestDirection);
 
-        if (direction & PATH_OUT_UP) {
-            buffer[index] = 'U'; // TODO distinc for each direction
-            isDfsEnd = dfs(row - 1, col, targRow, targCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
-        }
-        if (direction & PATH_OUT_RIGHT) {
-            buffer[index] = 'R';
-            isDfsEnd = dfs(row, col + 1, targRow, targCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
-        }
-        if (direction & PATH_OUT_DOWN) {
-            buffer[index] = 'D';
-            isDfsEnd = dfs(row + 1, col, targRow, targCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
-        }
-        if (direction & PATH_OUT_LEFT) {
-            buffer[index] = 'L';
-            isDfsEnd = dfs(row, col - 1, targRow, targCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+        switch (bestDirection) {
+            case PATH_OUT_UP:
+                buffer[index] = 'U';
+                isDfsEnd = dfs(row - 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                               buffer);
+                break;
+
+            case PATH_OUT_RIGHT:
+                buffer[index] = 'R';
+                isDfsEnd = dfs(row, col + 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                               buffer);
+                break;
+
+            case PATH_OUT_DOWN:
+                buffer[index] = 'D';
+                isDfsEnd = dfs(row + 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                               buffer);
+                break;
+
+            case PATH_OUT_LEFT:
+                buffer[index] = 'L';
+                isDfsEnd = dfs(row, col - 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                               buffer);
+                break;
+
         }
         removeOutPathMap(row, col);
     }
 
     if (!isDfsEnd) {
-        // wrong path, going back reset visited
+        //wrong path, going back reset visited
         starMap[row][col] &= CELL_NOT_VISITED;
+        if (onWhite || onBlack) {
+            //push the cell in targets again
+            targets.push_back({row, col});
+        }
     }
 
     return isDfsEnd;
+
 }
 
 void computeSolution() {
-    START_ROW = 0;
-    START_COL = 0;
+    START_ROW = -1;
+    START_COL = -1;
     char *buffer = new char[66000];
-    // pick startup position
+
+
+    // pick startup position BLACK
+//    for (int i = 0; i < B_BLACK; ++i) {
+//        int rowB = blackRings[i].row;
+//        int colB = blackRings[i].col;
+//        if (starMap[rowB][colB] & CELL_PREPROCESSED) {
+//            START_ROW = rowB;
+//            START_COL = colB;
+//            break;
+//        }
+//    }
+
+    //pick startup position white
     for (int i = 0; i < W_WHITE; ++i) {
         int rowW = whiteRings[i].row;
         int colW = whiteRings[i].col;
+//        if (starMap[rowW][colW] & CELL_PREPROCESSED && isIsolatedCell(rowW, colW)) {
+        //TODO decide if isolated cell or not
         if (starMap[rowW][colW] & CELL_PREPROCESSED) {
             START_ROW = rowW;
             START_COL = colW;
@@ -571,16 +748,27 @@ void computeSolution() {
         }
     }
 
-    // TODO: popolare l'array di targets
-    for (auto &white : whiteRings) {
+    if (START_ROW == -1) {
+#ifdef DEBUG
+        cerr << "startup cell not found" << endl;
+#endif
+        START_ROW = 0;
+        START_COL = 0;
+    }
+
+#ifdef DEBUG
+    cout << "START: " << START_ROW <<"," << START_COL<< endl;
+#endif
+
+    // fill targets with white and blacks rings
+    for (Coordinates &white : whiteRings) {
         targets.push_back(white);
     }
-    for (auto &black : blackRings) {
+    for (Coordinates &black : blackRings) {
         targets.push_back(black);
     }
-    Coordinates target = getNearestTarget({START_ROW, START_COL});
 
-    dfs(START_ROW, START_COL, target.row, target.col, 0, 0, -10, -10, buffer);
+    dfs(START_ROW, START_COL, START_ROW, START_COL, 0, 0, -10, -10, buffer);
 }
 
 /**************************** MAP UTILS ****************************/
@@ -589,7 +777,7 @@ bool checkBounds(int row, int col) { return row >= 0 && row < N_ROWS && col >= 0
 void updateAdjacentCells(int row, int col) {
     // update virtual walls
 
-    // STAR MAP
+    //STAR MAP
     // up
     if (starMap[row][col] & WALL_UP && checkBounds(row - 1, col)) {
         starMap[row - 1][col] |= WALL_DOWN;
@@ -607,61 +795,61 @@ void updateAdjacentCells(int row, int col) {
         starMap[row][col - 1] |= WALL_RIGHT;
     }
 
-    // PATH MAP
+    //PATH MAP
     // up
     if (checkBounds(row - 1, col)) {
         if (pathMap[row][col] & PATH_OUT_UP) {
-            // add
+            //add
             pathMap[row - 1][col] |= PATH_IN_DOWN;
         } else {
-            // remove
-            pathMap[row - 1][col] &= (unsigned char)~PATH_IN_DOWN;
+            //remove
+            pathMap[row - 1][col] &= (unsigned char) ~PATH_IN_DOWN;
         }
     }
 
     // right
     if (checkBounds(row, col + 1)) {
         if (pathMap[row][col] & PATH_OUT_RIGHT) {
-            // add
+            //add
             pathMap[row][col + 1] |= PATH_IN_LEFT;
         } else {
-            // remove
-            pathMap[row][col + 1] &= (unsigned char)~PATH_IN_LEFT;
+            //remove
+            pathMap[row][col + 1] &= (unsigned char) ~PATH_IN_LEFT;
         }
     }
 
     // down
     if (checkBounds(row + 1, col)) {
         if (pathMap[row][col] & PATH_OUT_DOWN) {
-            // add
+            //add
             pathMap[row + 1][col] |= PATH_IN_UP;
         } else {
-            // remove
-            pathMap[row + 1][col] &= (unsigned char)~PATH_IN_UP;
+            //remove
+            pathMap[row + 1][col] &= (unsigned char) ~PATH_IN_UP;
         }
     }
 
     // left
     if (checkBounds(row, col - 1)) {
         if (pathMap[row][col] & PATH_OUT_LEFT) {
-            // add
+            //add
             pathMap[row][col - 1] |= PATH_IN_RIGHT;
         } else {
-            // remove
-            pathMap[row][col - 1] &= (unsigned char)~PATH_IN_RIGHT;
+            //remove
+            pathMap[row][col - 1] &= (unsigned char) ~PATH_IN_RIGHT;
         }
     }
+
 }
 
 /**************************** GENERAL UTILS ****************************/
 void init() {
-    ifstream in("input.txt");
-    ofstream out("output.txt");
+    ifstream in(INPUT_FILENAME);
+    ofstream out(OUTPUT_FILENAME);
     out.close();
 
     in >> N_ROWS >> M_COLS >> B_BLACK >> W_WHITE;
     TOTAL_RINGS = B_BLACK + W_WHITE;
-
     // build starMap
     starMap = new unsigned char *[N_ROWS];
     pathMap = new unsigned char *[N_ROWS];
@@ -721,11 +909,11 @@ void printPath(int ringsCount, int pathSize, char *buffer) {
     cout << "#" << endl;
 }
 
-#endif // DEBUG
+#endif //DEBUG
 
 #ifndef DEBUG
 void printPath(int ringsCount, int pathSize, char *buffer) {
-    ofstream out("output.txt", ofstream::app);
+    ofstream out(OUTPUT_FILENAME, ofstream::app);
     out << ringsCount << " " << pathSize << " " << START_ROW << " " << START_COL << " ";
     for (int i = 0; i < pathSize; ++i) {
         out << buffer[i];
@@ -733,7 +921,8 @@ void printPath(int ringsCount, int pathSize, char *buffer) {
     out << "#" << endl;
     out.close();
 }
-#endif // DEBUG
+#endif //DEBUG
+
 
 void mapToJson() {
 #ifdef DEBUG
@@ -742,7 +931,7 @@ void mapToJson() {
     for (int i = 0; i < N_ROWS; ++i) {
         cout << "[";
         for (int j = 0; j < M_COLS; ++j) {
-            cout << (int)starMap[i][j];
+            cout << (int) starMap[i][j];
             if (j < M_COLS - 1) {
                 cout << ",";
             }
@@ -758,7 +947,7 @@ void mapToJson() {
     for (int i = 0; i < N_ROWS; ++i) {
         cout << "[";
         for (int j = 0; j < M_COLS; ++j) {
-            cout << (int)pathMap[i][j];
+            cout << (int) pathMap[i][j];
             if (j < M_COLS - 1) {
                 cout << ",";
             }
@@ -770,5 +959,5 @@ void mapToJson() {
     }
     cout << "]";
     cout << "}" << endl;
-#endif // DEBUG
+#endif //DEBUG
 }
