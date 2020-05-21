@@ -2,7 +2,7 @@
 
 
 #ifdef UPLOAD_TO_JUDGE
-//#include "swrace.h"
+#include "swrace.h"
 #endif
 
 #ifndef UPLOAD_TO_JUDGE
@@ -324,6 +324,62 @@ void preprocessWhiteRings() {
                     starMap[row][col] |= CELL_PREPROCESSED;
                     needOneMoreCycle = true;
                 }
+
+                //HEURISTIC BONUS
+                //wall on right -> wall on left, wall up -> wall down
+                //if cell next to me is white copy the walls
+                if (starMap[row][col] & WALL_RIGHT) {
+                    //cell up
+                    if (checkBounds(row - 1, col) && starMap[row - 1][col] & CELL_WHITE) {
+                        starMap[row - 1][col] |= WALL_RIGHT;
+                        starMap[row - 1][col] |= WALL_LEFT;
+                        updateAdjacentCells(row - 1, col);
+
+                        if (checkBounds(row - 2, col)) {
+                            starMap[row - 2][col] |= WALL_UP;
+                            updateAdjacentCells(row - 2, col);
+                        }
+                    }
+                    //cell down
+                    if (checkBounds(row + 1, col) && starMap[row + 1][col] & CELL_WHITE) {
+                        starMap[row + 1][col] |= WALL_RIGHT;
+                        starMap[row + 1][col] |= WALL_LEFT;
+                        updateAdjacentCells(row + 1, col);
+
+                        if (checkBounds(row + 2, col)) {
+                            starMap[row + 2][col] |= WALL_DOWN;
+                            updateAdjacentCells(row + 2, col);
+                        }
+                    }
+                    needOneMoreCycle = true;
+                }
+                if (starMap[row][col] & WALL_UP) {
+                    //cell left
+                    if (checkBounds(row, col - 1) && starMap[row][col - 1] & CELL_WHITE) {
+                        starMap[row][col - 1] |= WALL_UP;
+                        starMap[row][col - 1] |= WALL_DOWN;
+                        updateAdjacentCells(row, col - 1);
+
+                        if (checkBounds(row, col - 2)) {
+                            starMap[row][col - 2] |= WALL_LEFT;
+                            updateAdjacentCells(row, col - 2);
+                        }
+                    }
+                    //cell right
+                    if (checkBounds(row, col + 1) && starMap[row][col + 1] & CELL_WHITE) {
+                        starMap[row][col + 1] |= WALL_UP;
+                        starMap[row][col + 1] |= WALL_DOWN;
+                        updateAdjacentCells(row, col + 1);
+
+                        if (checkBounds(row, col + 2)) {
+                            starMap[row][col + 2] |= WALL_RIGHT;
+                            updateAdjacentCells(row, col + 2);
+                        }
+
+                    }
+                    needOneMoreCycle = true;
+                }
+
 
                 if (needOneMoreCycle) {
                     updateAdjacentCells(row, col);
@@ -767,12 +823,20 @@ void computeSolution() {
 //    }
 
     if (START_ROW == -1) {
+#ifdef DEBUG
         cerr << "startup cell not found" << endl;
+#endif
         START_ROW = 0;
         START_COL = 0;
     }
+
+#ifdef DEBUG
+    cout << "START: " << START_ROW << "," << START_COL << endl;
+#endif
+
     targets.clear();
     // fill targets with white and blacks rings
+    //TODO ADD WHITE TO TARGETS
 //    for (Coordinates &white : whiteRings) {
 //        targets.push_back(white);
 //    }
