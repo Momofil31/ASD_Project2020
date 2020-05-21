@@ -1,14 +1,14 @@
-//#define UPLOAD_TO_JUDGE
+#define UPLOAD_TO_JUDGE
 
 
 #ifdef UPLOAD_TO_JUDGE
-#include "swrace.h"
+//#include "swrace.h"
 #endif
 
 #ifndef UPLOAD_TO_JUDGE
 
 #define DEBUG //print debug
-//#define MULTI_FILE_TEST // test on multiple files
+#define MULTI_FILE_TEST // test on multiple files
 
 #endif
 
@@ -100,9 +100,9 @@ int main() {
 #ifdef MULTI_FILE_TEST
     //keep this log, no submit with multi file enable
     cout << "MULTI FILE TESTING!!!" << endl;
-    for (int i = 0; i < 5; ++i) {
-        INPUT_FILENAME = "input" + std::to_string(i) + ".txt";
-        OUTPUT_FILENAME = "output" + std::to_string(i) + ".txt";
+    for (int i = 0; i < 20; ++i) {
+        INPUT_FILENAME = "input/input" + std::to_string(i) + ".txt";
+        OUTPUT_FILENAME = "output/output" + std::to_string(i) + ".txt";
 
         time_t start, end;
         start = clock();
@@ -453,6 +453,7 @@ unsigned char getAvailableDirection(int row, int col, int bufferIndex, int lastW
     bool onBlack = starMap[row][col] & CELL_BLACK;
     bool onWhite = starMap[row][col] & CELL_WHITE;
     unsigned char prevPathMapCell = getPrevPathMapCell(row, col);
+    unsigned char prevStarMapCell = getPrevStarMapCell(row, col);
 
 
     //CHOSE DIRECTION ACCORDING TO WALL AND VISITED
@@ -490,6 +491,12 @@ unsigned char getAvailableDirection(int row, int col, int bufferIndex, int lastW
         //no out as the prev cell
         availableDirection &= ~(prevPathMapCell & PATH_OUT_ALL);
     }
+    //Prev cell is black go straight
+    if (prevStarMapCell & CELL_BLACK) {
+        //only available direction is the same of prev cell
+        availableDirection &= (prevPathMapCell & PATH_OUT_ALL);
+    }
+
 
     //white rules
     if (onWhite && bufferIndex > 0) {
@@ -538,12 +545,12 @@ Coordinates getNearestTarget(Coordinates start) {
 bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
          int lastBlackIndex, char *buffer, int targetMaxDepth) {
     if (targetMaxDepth < 0) {
-        #ifdef DEBUG
-//        cerr << "BREAK FOR TARGET MAX DEPTH" << endl;
-//        cout << "BREAK FOR TARGET MAX DEPTH" << endl;
-//        mapToJson();
-//        exit(1);
-        #endif
+#ifdef DEBUG
+        //        cerr << "BREAK FOR TARGET MAX DEPTH" << endl;
+        //        cout << "BREAK FOR TARGET MAX DEPTH" << endl;
+        //        mapToJson();
+        //        exit(1);
+#endif
         return false;
     }
 
@@ -764,11 +771,11 @@ void computeSolution() {
         START_ROW = 0;
         START_COL = 0;
     }
-
+    targets.clear();
     // fill targets with white and blacks rings
-/*    for (Coordinates &white : whiteRings) {
-        targets.push_back(white);
-    }*/
+//    for (Coordinates &white : whiteRings) {
+//        targets.push_back(white);
+//    }
     for (Coordinates &black : blackRings) {
         targets.push_back(black);
     }
@@ -856,7 +863,7 @@ void init() {
     in >> N_ROWS >> M_COLS >> B_BLACK >> W_WHITE;
     TOTAL_RINGS = B_BLACK + W_WHITE;
 //    MAX_DFS_DEPTH = (int) max(N_ROWS, M_COLS);
-    MAX_DFS_DEPTH = (int) N_ROWS+ M_COLS;
+    MAX_DFS_DEPTH = (int) N_ROWS + M_COLS;
 
     // build starMap
     starMap = new unsigned char *[N_ROWS];
@@ -884,6 +891,7 @@ void init() {
     }
 
     // black rings
+    blackRings.clear();
     blackRings.resize(B_BLACK);
     for (int k = 0; k < B_BLACK; ++k) {
         int row, col;
@@ -894,6 +902,7 @@ void init() {
     }
 
     // white rings
+    whiteRings.clear();
     whiteRings.resize(W_WHITE);
     for (int k = 0; k < W_WHITE; ++k) {
         int row, col;
@@ -920,6 +929,7 @@ void printPath(int ringsCount, int pathSize, char *buffer) {
 #endif //DEBUG
 
 #ifndef DEBUG
+
 void printPath(int ringsCount, int pathSize, char *buffer) {
     ofstream out(OUTPUT_FILENAME, ofstream::app);
     out << ringsCount << " " << pathSize << " " << START_ROW << " " << START_COL << " ";
@@ -929,6 +939,7 @@ void printPath(int ringsCount, int pathSize, char *buffer) {
     out << "#" << endl;
     out.close();
 }
+
 #endif //DEBUG
 
 
