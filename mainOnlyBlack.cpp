@@ -784,7 +784,7 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
     if (!isDfsEnd) {
         //wrong path, going back reset visited
         starMap[row][col] &= CELL_NOT_VISITED;
-        if (onWhite || onBlack) {
+        if (onBlack) {
             //push the cell in targets again
             targets.push_back({row, col});
         }
