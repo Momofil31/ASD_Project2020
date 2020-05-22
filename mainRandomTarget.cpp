@@ -8,7 +8,7 @@
 
 #ifndef UPLOAD_TO_JUDGE
 
-
+#define DEBUG //print debug
 //#define MULTI_FILE_TEST // test on multiple files
 
 #endif
@@ -20,6 +20,7 @@
 #include <vector>
 #include <list>
 #include <climits>
+#include <random>
 
 
 using namespace std;
@@ -28,6 +29,9 @@ string INPUT_FILENAME = "input.txt";
 string OUTPUT_FILENAME = "output.txt";
 
 int MAX_DFS_DEPTH;
+int MAX_TARGET_DISTANCE; // TODO: set a reasonable value based on size of the map
+int RANDOM_SEED;
+
 int N_ROWS;
 int M_COLS;
 int B_BLACK;
@@ -578,25 +582,49 @@ bool isCoordCellVisited(Coordinates const &cell) {
 }
 
 Coordinates getNearestTarget(Coordinates start) {
-    Coordinates nearestTarget = {-1, -1};
-    int minDistance = INT_MAX;
+
 
     //remove visited ring cell
     targets.remove_if(isCoordCellVisited);
 
-    for (Coordinates &target : targets) {
-        if (!isCoordCellVisited(target)) {
-            int distance = computeDistance(start, target);
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearestTarget = target;
+
+    Coordinates targetToReturn = {-1, -1};
+    srand(RANDOM_SEED);
+
+    if (targets.size() > 10) {
+        Coordinates previousTarget = {-1, -1};
+        int maxIterations = 5;
+        int iterCounter = 0;
+        do {
+            // try new target
+            iterCounter++;
+
+            int randomInt = rand() % targets.size();
+            Coordinates target = *next(targets.begin(), randomInt);
+
+            if (!isCoordCellVisited(target)) {
+                previousTarget = targetToReturn;
+                targetToReturn = target;
             }
-        } else {
-            cerr << "Error in remove if" << endl;
+            //cout << "Choosed random target!" << endl;
+        } while (computeDistance(targetToReturn, previousTarget) > MAX_TARGET_DISTANCE && iterCounter < maxIterations);
+    } else {
+        int minDistance = INT_MAX;
+        for (Coordinates &target : targets) {
+            if (!isCoordCellVisited(target)) {
+                int distance = computeDistance(start, target);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    targetToReturn = target;
+                }
+            } else {
+                cerr << "Error in remove if" << endl;
+            }
         }
     }
 
-    return nearestTarget;
+
+    return targetToReturn;
 }
 
 bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
@@ -638,14 +666,14 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
 
         //if on black
         // prevIn == currentIN && nextOut == currentOut
-        bool validExit = onBlack &&
-                         ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
-                         ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0);
+        bool validExit = onBlack && (
+                ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
+                ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0));
         //if on a white,
         // enterPrev != enterCurrent OR exitNext != exitCurrent
-        validExit |= onWhite &&
-                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
-                     ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0);
+        validExit |= onWhite && (
+                ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
+                ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0));
 
         if (validExit) {
             //THE END GAME
@@ -799,6 +827,8 @@ void computeSolution() {
     START_COL = -1;
     char *buffer = new char[66000];
 
+    // pick MAX_TARGET_DISTANCE
+    MAX_TARGET_DISTANCE = (N_ROWS + M_COLS) / 4;
 
     // pick startup position BLACK
     for (int i = 0; i < B_BLACK; ++i) {
@@ -836,11 +866,11 @@ void computeSolution() {
 #endif
 
     targets.clear();
+
     // fill targets with white and blacks rings
-    //TODO ADD WHITE TO TARGETS
-//    for (Coordinates &white : whiteRings) {
-//        targets.push_back(white);
-//    }
+    for (Coordinates &white : whiteRings) {
+        targets.push_back(white);
+    }
     for (Coordinates &black : blackRings) {
         targets.push_back(black);
     }
