@@ -637,15 +637,20 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
         unsigned char nextPathMapCell = getNextPathMapCell(row, col);
 
         //if on black
-        // prevIn == currentIN && nextOut == currentOut
-        bool validExit = onBlack &&
-                         ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
-                         ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0);
-        //if on a white,
-        // enterPrev != enterCurrent OR exitNext != exitCurrent
-        validExit |= onWhite &&
-                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
-                     ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0);
+        bool validExit = true;
+        if (onBlack) {
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0);
+        }
+
+        //if on a white
+        if (onWhite) {
+            //enterPrev != enterCurrent OR exitNext != exitCurrent
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0);
+        }
+
 
         if (validExit) {
             //THE END GAME
@@ -664,19 +669,23 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
 
     //new ring, checkpoint
     if (ringCount > totalScore) {
-        //open path ends in black
-        // prevIn == currentIN && nextOut == currentOut
-        bool validExit = onBlack &&
-                         ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0);
-        //open path ends in white,
-        // enterPrev != enterCurrent OR exitNext != exitCurrent
-//        validExit |= onWhite &&
-//                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0);
+        bool validExit = false;
 
-        validExit |= (onWhite && (prevStarMapCell & CELL_WHITE) == 0);
+        if (onBlack) {
+            //open path ends in black
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0);
+        } else if (onWhite) {
+            //open path ends in white,
+            // enterPrev != enterCurrent OR exitNext != exitCurrent
+            //        validExit |= onWhite &&
+            //                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0);
+            validExit = (prevStarMapCell & CELL_WHITE) == 0;
+        } else {
+            //not on white or black every move is ok
+            validExit = true;
+        }
 
-        //not on white or black every move is ok
-        validExit |= !onWhite && !onBlack;
 
         if (validExit) {
             totalScore = ringCount;
