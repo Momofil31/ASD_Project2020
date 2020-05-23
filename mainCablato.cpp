@@ -731,24 +731,28 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
     //up
     if (availableDirection & PATH_OUT_UP) {
         int dist = computeDistance({row - 1, col}, {targetRow, targetCol});
+        if (TOTAL_RINGS == 19 && (getPrevPathMapCell(row, col) & PATH_OUT_UP) != 0) dist -= 1;
         pq.push(make_pair(dist, PATH_OUT_UP));
     }
 
     //right
     if (availableDirection & PATH_OUT_RIGHT) {
         int dist = computeDistance({row, col + 1}, {targetRow, targetCol});
+        if (TOTAL_RINGS == 19 && (getPrevPathMapCell(row, col) & PATH_OUT_RIGHT) != 0) dist -= 1;
         pq.push(make_pair(dist, PATH_OUT_RIGHT));
     }
 
     //down
     if (availableDirection & PATH_OUT_DOWN) {
         int dist = computeDistance({row + 1, col}, {targetRow, targetCol});
+        if (TOTAL_RINGS == 19 && (getPrevPathMapCell(row, col) & PATH_OUT_DOWN) != 0) dist -= 1;
         pq.push(make_pair(dist, PATH_OUT_DOWN));
     }
 
     //left
     if (availableDirection & PATH_OUT_LEFT) {
         int dist = computeDistance({row, col - 1}, {targetRow, targetCol});
+        if (TOTAL_RINGS == 19 && (getPrevPathMapCell(row, col) & PATH_OUT_LEFT) != 0) dist -= 1;
         pq.push(make_pair(dist, PATH_OUT_LEFT));
     }
 
