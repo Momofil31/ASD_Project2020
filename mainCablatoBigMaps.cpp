@@ -46,7 +46,7 @@ struct Coordinates {
     int row;
     int col;
 
-    bool operator< (const Coordinates &a) const {
+    bool operator<(const Coordinates &a) const {
         return (row * row + col * col < a.row * a.row + a.col * a.col);
     }
 };
@@ -1201,27 +1201,67 @@ bool dfsEighth(int row, int col, int targetRow, int targetCol, int index, int ri
 }
 
 bool dfsDense(int row, int col, int index, int ringCount, int lastWhiteIndex, int lastBlackIndex, char *buffer) {
-    //RETURNED HOME WITH MAX SCORE
-    if (isStartCell(row, col) && index > 0) {
-        if (ringCount >= TOTAL_RINGS) {
-            //THE END GAME
-            printPath(ringCount, index, buffer);
-            mapToJson();
-            totalScore = 999999;
-        }
-        return true;
-    }
-
     bool onBlack = starMap[row][col] & CELL_BLACK;
     bool onWhite = starMap[row][col] & CELL_WHITE;
     unsigned char prevPathMapCell = getPrevPathMapCell(row, col);
     unsigned char prevStarMapCell = getPrevStarMapCell(row, col);
 
+    //RETURNED HOME WITH MAX SCORE
+    if (isStartCell(row, col) && index > 0 && ringCount >= TOTAL_RINGS) {
+        //check home white end rule
+        unsigned char nextPathMapCell = getNextPathMapCell(row, col);
+
+        //if on black
+        bool validExit = true;
+        if (onBlack) {
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0);
+        }
+
+        //if on a white
+        if (onWhite) {
+            //enterPrev != enterCurrent OR exitNext != exitCurrent
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0);
+        }
+
+
+        if (validExit) {
+            //THE END GAME
+            printPath(ringCount, index, buffer);
+            mapToJson();
+            totalScore = 999999;
+            return true;
+        }
+    }
+
     //RING COUNT CHECK
     if (onBlack || onWhite) {
         ringCount++;
-        //new ring, checkpoint
-        if (ringCount > totalScore && !(prevStarMapCell & CELL_WHITE)) {
+    }
+
+    //new ring, checkpoint
+    if (ringCount > totalScore) {
+        bool validExit = false;
+
+        if (onBlack) {
+            //open path ends in black
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0);
+        } else if (onWhite) {
+            //open path ends in white,
+            // enterPrev != enterCurrent OR exitNext != exitCurrent
+            //        validExit |= onWhite &&
+            //                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0);
+            validExit = (prevStarMapCell & CELL_WHITE) == 0;
+        } else {
+            //not on white or black every move is ok
+            validExit = true;
+        }
+
+
+        if (validExit) {
             totalScore = ringCount;
             printPath(ringCount, index, buffer);
             mapToJson();
@@ -1248,8 +1288,16 @@ bool dfsDense(int row, int col, int index, int ringCount, int lastWhiteIndex, in
     }
 
     //update white with this if I am on white
-    if (onWhite) {
+/*    if (onWhite) {
         if (index == 0 || (prevPathMapCell & pathMap[row][col] & PATH_IN_ALL)) {
+            lastWhiteIndex = index;
+        }
+    }*/
+
+    //update white with this if I am on white and I need to change direction in next cell
+    if (onWhite) {
+        //TODO SKIP CHECK ON FIRST CELL(?)
+        if (index != 0 && (prevPathMapCell & pathMap[row][col] & PATH_IN_ALL)) {
             lastWhiteIndex = index;
         }
     }
