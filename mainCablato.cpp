@@ -1,4 +1,4 @@
-#define UPLOAD_TO_JUDGE
+//#define UPLOAD_TO_JUDGE
 
 
 #ifdef UPLOAD_TO_JUDGE
@@ -648,15 +648,20 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
         unsigned char nextPathMapCell = getNextPathMapCell(row, col);
 
         //if on black
-        // prevIn == currentIN && nextOut == currentOut
-        bool validExit = onBlack &&
-                         (((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
-                          ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0));
-        //if on a white,
-        // enterPrev != enterCurrent OR exitNext != exitCurrent
-        validExit |= onWhite &&
-                     (((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
-                      ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0));
+        bool validExit = true;
+        if (onBlack) {
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0);
+        }
+
+        //if on a white
+        if (onWhite) {
+            //enterPrev != enterCurrent OR exitNext != exitCurrent
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0);
+        }
+
 
         if (validExit) {
             //THE END GAME
@@ -675,19 +680,23 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
 
     //new ring, checkpoint
     if (ringCount > totalScore) {
-        //open path ends in black
-        // prevIn == currentIN && nextOut == currentOut
-        bool validExit = onBlack &&
-                         ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0);
-        //open path ends in white,
-        // enterPrev != enterCurrent OR exitNext != exitCurrent
-//        validExit |= onWhite &&
-//                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0);
+        bool validExit = false;
 
-        validExit |= (onWhite && (prevStarMapCell & CELL_WHITE) == 0);
+        if (onBlack) {
+            //open path ends in black
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0);
+        } else if (onWhite) {
+            //open path ends in white,
+            // enterPrev != enterCurrent OR exitNext != exitCurrent
+            //        validExit |= onWhite &&
+            //                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0);
+            validExit = (prevStarMapCell & CELL_WHITE) == 0;
+        } else {
+            //not on white or black every move is ok
+            validExit = true;
+        }
 
-        //not on white or black every move is ok
-        validExit |= !onWhite && !onBlack;
 
         if (validExit) {
             totalScore = ringCount;
@@ -704,6 +713,10 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
         if ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) {
             //prev and current in path not matching
             starMap[row][col] &= CELL_NOT_VISITED;
+            if (onWhite || onBlack) {
+                //push the cell in targets again
+                targets.push_back({row, col});
+            }
             return false;
         }
     }
@@ -714,6 +727,10 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
     // blind spot, return
     if (availableDirection == 0) {
         starMap[row][col] &= CELL_NOT_VISITED;
+        if (onWhite || onBlack) {
+            //push the cell in targets again
+            targets.push_back({row, col});
+        }
         return false;
     }
 
@@ -938,28 +955,31 @@ void computeSolution() {
     char *buffer = new char[66000];
 
 
-    // pick startup position BLACK
-    for (int i = 0; i < B_BLACK; ++i) {
-        int rowB = blackRings[i].row;
-        int colB = blackRings[i].col;
-        if (starMap[rowB][colB] & CELL_PREPROCESSED) {
-            START_ROW = rowB;
-            START_COL = colB;
-            break;
+    if (TOTAL_RINGS == 113) {
+        //pick startup position white
+        for (int i = 0; i < W_WHITE; ++i) {
+            int rowW = whiteRings[i].row;
+            int colW = whiteRings[i].col;
+//        if (starMap[rowW][colW] & CELL_PREPROCESSED && isIsolatedCell(rowW, colW)) {
+            if (starMap[rowW][colW] & CELL_PREPROCESSED) {
+                START_ROW = rowW;
+                START_COL = colW;
+                break;
+            }
+        }
+    } else {
+        // pick startup position BLACK
+        for (int i = 0; i < B_BLACK; ++i) {
+            int rowB = blackRings[i].row;
+            int colB = blackRings[i].col;
+            if (starMap[rowB][colB] & CELL_PREPROCESSED) {
+                START_ROW = rowB;
+                START_COL = colB;
+                break;
+            }
         }
     }
 
-    //pick startup position white
-//    for (int i = 0; i < W_WHITE; ++i) {
-//        int rowW = whiteRings[i].row;
-//        int colW = whiteRings[i].col;
-////        if (starMap[rowW][colW] & CELL_PREPROCESSED && isIsolatedCell(rowW, colW)) {
-//        if (starMap[rowW][colW] & CELL_PREPROCESSED) {
-//            START_ROW = rowW;
-//            START_COL = colW;
-//            break;
-//        }
-//    }
 
     if (START_ROW == -1) {
 #ifdef DEBUG
@@ -976,9 +996,11 @@ void computeSolution() {
     targets.clear();
     // fill targets with white and blacks rings
     //TODO ADD WHITE TO TARGETS
-//    for (Coordinates &white : whiteRings) {
-//        targets.push_back(white);
-//    }
+    if (TOTAL_RINGS == 113) {
+        for (Coordinates &white : whiteRings) {
+            targets.push_back(white);
+        }
+    }
     for (Coordinates &black : blackRings) {
         targets.push_back(black);
     }

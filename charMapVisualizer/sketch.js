@@ -35,7 +35,7 @@ if (cols > 0 && rows > 0) {
 
         for (let j = 0; j < cols; j++) {
             let cell = row.insertCell(j);
-
+            cell.title = i + "," + j;
             if (starMap[i][j] & WALL_UP) {
                 cell.classList.add("WALL_UP");
             }
