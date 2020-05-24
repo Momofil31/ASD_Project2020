@@ -1,4 +1,4 @@
-#define UPLOAD_TO_JUDGE
+//#define UPLOAD_TO_JUDGE
 
 
 #ifdef UPLOAD_TO_JUDGE
@@ -168,10 +168,10 @@ int main() {
     } else if (TOTAL_RINGS == 19) {
         // eighth
         computeSolutionEighth();
-    } else if (TOTAL_RINGS == 113) {
+    } else if (TOTAL_RINGS == 113 || TOTAL_RINGS == 134) {
         // sixteenth
         computeSolutionSixteenth();
-    } else if (TOTAL_RINGS >= 100) {
+    } else if (TOTAL_RINGS >= 200) {
         // dense
         computeSolutionDense();
     } else {
@@ -680,12 +680,11 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
 
     starMap[row][col] |= CELL_VISITED;
 
-    if ((targetRow == -1 && targetCol == -1) || (row == targetRow && col == targetCol)) {
-        Coordinates target = getNearestTarget({row, col});
-        targetRow = target.row;
-        targetCol = target.col;
-        targetMaxDepth = MAX_DFS_DEPTH;
-    }
+    Coordinates target = getNearestTarget({row, col});
+    targetRow = target.row;
+    targetCol = target.col;
+    targetMaxDepth = MAX_DFS_DEPTH;
+
     if ((targetRow == -1 && targetCol == -1) || targets.size() == 0) {
         // Go back home
         targetRow = START_ROW;
@@ -823,6 +822,29 @@ bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCoun
 
     //DFS EXPLORATION
     bool isDfsEnd = false;
+
+    // if i'm on white and on a legal move there's a black ring go into it
+    if (onWhite) {
+        if ((availableDirection & PATH_OUT_UP) && (starMap[row - 1][col] & CELL_BLACK)) {
+            buffer[index] = 'U';
+            isDfsEnd = dfs(row - 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+        } else if ((availableDirection & PATH_OUT_RIGHT) && (starMap[row][col + 1] & CELL_BLACK)) {
+            buffer[index] = 'R';
+            isDfsEnd = dfs(row, col + 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+        } else if (((availableDirection & PATH_OUT_DOWN) && (starMap[row + 1][col] & CELL_BLACK))) {
+            buffer[index] = 'D';
+            isDfsEnd = dfs(row + 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+
+        } else if (((availableDirection & PATH_OUT_LEFT) && (starMap[row][col - 1] & CELL_BLACK))) {
+            buffer[index] = 'L';
+            isDfsEnd = dfs(row, col - 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+        }
+    }
+
 
     while (!isDfsEnd && !pq.empty()) {
         //best decision
@@ -1340,6 +1362,28 @@ bool dfsDense(int row, int col, int index, int ringCount, int lastWhiteIndex, in
     //DFS EXPLORATION
     bool isDfsEnd = false;
 
+    // if i'm on white and on a legal move there's a black ring go into it
+    if (onWhite) {
+        if ((availableDirection & PATH_OUT_UP) && (starMap[row - 1][col] & CELL_BLACK)) {
+            buffer[index] = 'U';
+            isDfsEnd = dfsDense(row - 1, col, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                                buffer);
+        } else if ((availableDirection & PATH_OUT_RIGHT) && (starMap[row][col + 1] & CELL_BLACK)) {
+            buffer[index] = 'R';
+            isDfsEnd = dfsDense(row, col + 1, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                                buffer);
+        } else if (((availableDirection & PATH_OUT_DOWN) && (starMap[row + 1][col] & CELL_BLACK))) {
+            buffer[index] = 'D';
+            isDfsEnd = dfsDense(row + 1, col, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                                buffer);
+
+        } else if (((availableDirection & PATH_OUT_LEFT) && (starMap[row][col - 1] & CELL_BLACK))) {
+            buffer[index] = 'L';
+            isDfsEnd = dfsDense(row, col - 1, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                                buffer);
+        }
+    }
+
     while (!isDfsEnd && !pq.empty()) {
         //best decision
         unsigned char bestDirection = pq.top().second;
@@ -1404,12 +1448,12 @@ bool dfsAnticipatedHome(int row, int col, int targetRow, int targetCol, int inde
 
     starMap[row][col] |= CELL_VISITED;
 
-    if ((targetRow == -1 && targetCol == -1) || (row == targetRow && col == targetCol)) {
-        Coordinates target = getNearestTarget({row, col});
-        targetRow = target.row;
-        targetCol = target.col;
-        targetMaxDepth = MAX_DFS_DEPTH;
-    }
+
+    Coordinates target = getNearestTarget({row, col});
+    targetRow = target.row;
+    targetCol = target.col;
+    targetMaxDepth = MAX_DFS_DEPTH;
+
     if ((targetRow == -1 && targetCol == -1) || targets.size() == 0 || ringCount >= TARGET_THRESHOLD) {
         // Go back home
         targetRow = START_ROW;
@@ -1548,6 +1592,27 @@ bool dfsAnticipatedHome(int row, int col, int targetRow, int targetCol, int inde
     //DFS EXPLORATION
     bool isDfsEnd = false;
 
+    if (onWhite) {
+        if ((availableDirection & PATH_OUT_UP) && (starMap[row - 1][col] & CELL_BLACK)) {
+            buffer[index] = 'U';
+            isDfsEnd = dfs(row - 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+        } else if ((availableDirection & PATH_OUT_RIGHT) && (starMap[row][col + 1] & CELL_BLACK)) {
+            buffer[index] = 'R';
+            isDfsEnd = dfs(row, col + 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+        } else if (((availableDirection & PATH_OUT_DOWN) && (starMap[row + 1][col] & CELL_BLACK))) {
+            buffer[index] = 'D';
+            isDfsEnd = dfs(row + 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+
+        } else if (((availableDirection & PATH_OUT_LEFT) && (starMap[row][col - 1] & CELL_BLACK))) {
+            buffer[index] = 'L';
+            isDfsEnd = dfs(row, col - 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+        }
+    }
+
     while (!isDfsEnd && !pq.empty()) {
         //best decision
         unsigned char bestDirection = pq.top().second;
@@ -1640,6 +1705,10 @@ void computeSolutionDense() {
         }
     }
 
+    //TODO
+    START_ROW = whiteRings[0].row;
+    START_COL = whiteRings[0].col;
+
     if (START_ROW == -1) {
 #ifdef DEBUG
         cerr << "startup cell not found" << endl;
@@ -1660,7 +1729,7 @@ void computeSolutionSixteenth() {
     START_COL = -1;
     char *buffer = new char[66000];
 
-
+    sort(whiteRings.begin(), whiteRings.end());
     //pick startup position white
     for (int i = 0; i < W_WHITE; ++i) {
         int rowW = whiteRings[i].row;
@@ -1671,6 +1740,10 @@ void computeSolutionSixteenth() {
             break;
         }
     }
+
+    // TODO
+    START_ROW = whiteRings[0].row;
+    START_COL = whiteRings[0].col;
 
 
     if (START_ROW == -1) {
@@ -1743,6 +1816,7 @@ void computeSolutionAnticipatedHome() {
     START_COL = -1;
     char *buffer = new char[66000];
 
+    sort(blackRings.begin(), blackRings.end());
     // pick startup position BLACK
     for (int i = 0; i < B_BLACK; ++i) {
         int rowB = blackRings[i].row;
@@ -1753,6 +1827,9 @@ void computeSolutionAnticipatedHome() {
             break;
         }
     }
+
+    START_ROW = blackRings[0].row;
+    START_COL = blackRings[0].col;
 
     if (START_ROW == -1) {
 #ifdef DEBUG
