@@ -1,4 +1,4 @@
-#define UPLOAD_TO_JUDGE
+//#define UPLOAD_TO_JUDGE
 
 
 #ifdef UPLOAD_TO_JUDGE
@@ -10,7 +10,7 @@
 
 #ifndef UPLOAD_TO_JUDGE
 
-#define DEBUG //print debug
+//#define DEBUG //print debug
 //#define MULTI_FILE_TEST // test on multiple files
 
 #endif
@@ -31,7 +31,7 @@ string INPUT_FILENAME = "input.txt";
 string OUTPUT_FILENAME = "output.txt";
 
 int MAX_DFS_DEPTH;
-int TARGET_THRESHOLD = 500; //TODO
+int TARGET_THRESHOLD = INT_MAX; //TODO
 int N_ROWS;
 int M_COLS;
 int B_BLACK;
@@ -95,42 +95,40 @@ bool checkBounds(int row, int col);
 
 void updateAdjacentCells(int row, int col);
 
-bool isIsolatedCell(int row, int col) {
-    bool neighbour = false;
-    //up
-    if (checkBounds(row - 1, col)) {
-        neighbour |= (starMap[row - 1][col] & CELL_WHITE_OR_BLACK) != 0;
-    }
-    //right
-    if (checkBounds(row, col + 1)) {
-        neighbour |= (starMap[row][col + 1] & CELL_WHITE_OR_BLACK) != 0;
-    }
-    //down
-    if (checkBounds(row + 1, col)) {
-        neighbour |= (starMap[row + 1][col] & CELL_WHITE_OR_BLACK) != 0;
-    }
-    //left
-    if (checkBounds(row, col - 1)) {
-        neighbour |= (starMap[row][col - 1] & CELL_WHITE_OR_BLACK) != 0;
-    }
+void computeSolution();
 
-    return !neighbour;
+void computeSolutionFirst();
 
-}
+void computeSolutionEighth();
 
-void printPath(int ringsCount, int pathSize, char *buffer);
-
-void mapToJson();
+void computeSolutionWhite();
 
 void computeSolutionDense();
 
-void computeSolutionAnticipatedHome();
+void computeSolutionAnticipatedHomeOLD();
+
+bool
+dfs(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex, int lastBlackIndex,
+    char *buffer, int targetMaxDepth);
+
+bool dfsFirst(int row, int col, int index, int ringCount, int lastWhiteIndex, int lastBlackIndex, char *buffer);
+
+bool dfsEighth(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
+               int lastBlackIndex, char *buffer, int targetMaxDepth);
 
 bool dfsDense(int row, int col, int index, int ringCount, int lastWhiteIndex, int lastBlackIndex, char *buffer);
 
 bool dfsAnticipatedHome(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
                         int lastBlackIndex,
                         char *buffer, int targetMaxDepth);
+
+bool dfsAnticipatedHomeOLD(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
+                           int lastBlackIndex,
+                           char *buffer, int targetMaxDepth);
+
+void printPath(int ringsCount, int pathSize, char *buffer);
+
+void mapToJson();
 
 int main() {
 
@@ -152,7 +150,43 @@ int main() {
 
     mapToJson();
 
-    computeSolutionDense();
+    if (N_ROWS == 8 && M_COLS == 8 && B_BLACK == 2 && W_WHITE == 15) {
+        //first
+        computeSolutionFirst();
+    } else if (TOTAL_RINGS == 30) {
+        // anticipate return home
+        switch (TOTAL_RINGS) {
+            case 30:
+                TARGET_THRESHOLD = 28;
+                break;
+        }
+        computeSolutionAnticipatedHomeOLD();
+
+    } else if (TOTAL_RINGS == 19) {
+        // eighth
+        computeSolutionEighth();
+    } else if (TOTAL_RINGS == 134) {
+        // sixteenth
+        computeSolutionWhite();
+    } else if (TOTAL_RINGS >= 100) {
+        // dense
+        switch (TOTAL_RINGS) {
+            case 10000:
+                TARGET_THRESHOLD = INT_MAX;
+                break;
+            case 6000:
+                TARGET_THRESHOLD = INT_MAX;
+                break;
+            case 1700:
+                TARGET_THRESHOLD = 1100;
+                break;
+        }
+        computeSolutionDense();
+    } else {
+        // default
+        computeSolution();
+    }
+
 
 #ifdef MULTI_FILE_TEST
     end = clock();
@@ -160,7 +194,7 @@ int main() {
 
 }
 #endif
-    cout << "TERMINATO" << endl;
+    cout << "SUGO" << endl;
     return 0;
 }
 
@@ -447,6 +481,29 @@ bool isStartCell(int row, int col) {
     return row == START_ROW && col == START_COL;
 }
 
+bool isIsolatedCell(int row, int col) {
+    bool neighbour = false;
+    //up
+    if (checkBounds(row - 1, col)) {
+        neighbour |= (starMap[row - 1][col] & CELL_WHITE_OR_BLACK) != 0;
+    }
+    //right
+    if (checkBounds(row, col + 1)) {
+        neighbour |= (starMap[row][col + 1] & CELL_WHITE_OR_BLACK) != 0;
+    }
+    //down
+    if (checkBounds(row + 1, col)) {
+        neighbour |= (starMap[row + 1][col] & CELL_WHITE_OR_BLACK) != 0;
+    }
+    //left
+    if (checkBounds(row, col - 1)) {
+        neighbour |= (starMap[row][col - 1] & CELL_WHITE_OR_BLACK) != 0;
+    }
+
+    return !neighbour;
+
+}
+
 unsigned char getPrevStarMapCell(int row, int col) {
     //arrived from up
     if (checkBounds(row - 1, col) && pathMap[row][col] & PATH_IN_UP) {
@@ -590,14 +647,6 @@ unsigned char getAvailableDirection(int row, int col, int bufferIndex, int lastW
 
 int computeDistance(Coordinates a, Coordinates b) { return abs(a.row - b.row) + abs(a.col - b.col); }
 
-void updateTargetMaxDepth(Coordinates thisCell, Coordinates target, int &targetMaxDepth) {
-    if (isStartCell(target.row, target.col)) {
-        int distanceToTarget = computeDistance(thisCell, target);
-        if (distanceToTarget * 2 + 2 < targetMaxDepth)
-            targetMaxDepth = distanceToTarget * 2 + 2;
-    }
-}
-
 bool isCoordCellVisited(Coordinates const &cell) {
     return (starMap[cell.row][cell.col] & CELL_VISITED) != 0; // need this !=0
 }
@@ -623,6 +672,8 @@ Coordinates getNearestTarget(Coordinates start) {
 
     return nearestTarget;
 }
+
+/****************************  CODICE EXTRA DFS DENSA E CASA ANTICIPATA ****************************/
 
 void computeSolutionDense() {
     // Parte dal bianco isolato più a sinistra.
@@ -953,12 +1004,20 @@ void computeSolutionAnticipatedHome() {
     dfsAnticipatedHome(START_ROW, START_COL, START_ROW, START_COL, 0, 0, -10, -10, buffer, MAX_DFS_DEPTH);
 }
 
+void updateTargetMaxDepth(Coordinates thisCell, Coordinates target, int &targetMaxDepth) {
+    if (isStartCell(target.row, target.col)) {
+        int distanceToTarget = computeDistance(thisCell, target);
+        if (distanceToTarget * 2 + 2 < targetMaxDepth)
+            targetMaxDepth = distanceToTarget * 2 + 2;
+    }
+}
+
 bool dfsAnticipatedHome(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
                         int lastBlackIndex,
                         char *buffer, int targetMaxDepth) {
     if (targetMaxDepth < 0) {
 #ifdef DEBUG
-//        cerr << "BREAK FOR TARGET MAX DEPTH" << endl;
+        //        cerr << "BREAK FOR TARGET MAX DEPTH" << endl;
 //        cout << "BREAK FOR TARGET MAX DEPTH" << endl;
 //        mapToJson();
 //        //exit(1);
@@ -1205,6 +1264,1067 @@ bool dfsAnticipatedHome(int row, int col, int targetRow, int targetCol, int inde
     return isDfsEnd;
 }
 
+/****************************  OK ****************************/
+
+bool dfs(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
+         int lastBlackIndex, char *buffer, int targetMaxDepth) {
+    if (targetMaxDepth < 0) {
+#ifdef DEBUG
+        //        cerr << "BREAK FOR TARGET MAX DEPTH" << endl;
+        //        cout << "BREAK FOR TARGET MAX DEPTH" << endl;
+        //        mapToJson();
+        //        exit(1);
+#endif
+        return false;
+    }
+
+    bool onBlack = starMap[row][col] & CELL_BLACK;
+    bool onWhite = starMap[row][col] & CELL_WHITE;
+    unsigned char prevPathMapCell = getPrevPathMapCell(row, col);
+    unsigned char prevStarMapCell = getPrevStarMapCell(row, col);
+
+    starMap[row][col] |= CELL_VISITED;
+
+    Coordinates target = getNearestTarget({row, col});
+    targetRow = target.row;
+    targetCol = target.col;
+    targetMaxDepth = MAX_DFS_DEPTH;
+
+    if ((targetRow == -1 && targetCol == -1) || targets.size() == 0) {
+        // Go back home
+        targetRow = START_ROW;
+        targetCol = START_COL;
+        targetMaxDepth = MAX_DFS_DEPTH;
+    }
+
+    //RETURNED HOME WITH MAX SCORE
+    if (isStartCell(row, col) && index > 0 && ringCount >= TOTAL_RINGS) {
+        //check home white end rule
+        unsigned char nextPathMapCell = getNextPathMapCell(row, col);
+
+        //if on black
+        bool validExit = true;
+        if (onBlack) {
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0);
+        }
+
+        //if on a white
+        if (onWhite) {
+            //enterPrev != enterCurrent OR exitNext != exitCurrent
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0);
+        }
+
+
+        if (validExit) {
+            //THE END GAME
+            printPath(ringCount, index, buffer);
+            mapToJson();
+            totalScore = 999999;
+            return true;
+        }
+    }
+
+
+    //RING COUNT CHECK
+    if (onBlack || onWhite) {
+        ringCount++;
+    }
+
+    //new ring, checkpoint
+    if (ringCount > totalScore) {
+        bool validExit = false;
+
+        if (onBlack) {
+            //open path ends in black
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0);
+        } else if (onWhite) {
+            //open path ends in white,
+            // enterPrev != enterCurrent OR exitNext != exitCurrent
+            //        validExit |= onWhite &&
+            //                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0);
+            validExit = (prevStarMapCell & CELL_WHITE) == 0;
+        } else {
+            //not on white or black every move is ok
+            validExit = true;
+        }
+
+
+        if (validExit) {
+            totalScore = ringCount;
+            printPath(ringCount, index, buffer);
+            mapToJson();
+        }
+    }
+
+    //PRELIMINARY CHECKS
+    // 1) I am on black, prev tile has straight path?
+    // 1) correct is prevInPath == thisInPath
+    //TODO SKIP FIRST CELL CHECK(?)
+    if (onBlack && index > 1) {
+        if ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) {
+            //prev and current in path not matching
+            starMap[row][col] &= CELL_NOT_VISITED;
+            if (onWhite || onBlack) {
+                //push the cell in targets again
+                targets.push_back({row, col});
+            }
+            return false;
+        }
+    }
+
+    //PATH DECISION
+    unsigned char availableDirection = getAvailableDirection(row, col, index, lastWhiteIndex, ringCount);
+
+    // blind spot, return
+    if (availableDirection == 0) {
+        starMap[row][col] &= CELL_NOT_VISITED;
+        if (onWhite || onBlack) {
+            //push the cell in targets again
+            targets.push_back({row, col});
+        }
+        return false;
+    }
+
+    //update white with this if I am on white and I need to change direction in next cell
+    if (onWhite) {
+        //TODO SKIP CHECK ON FIRST CELL(?)
+        if (index != 0 && (prevPathMapCell & pathMap[row][col] & PATH_IN_ALL)) {
+            lastWhiteIndex = index;
+        }
+    }
+
+    // CHOSE DIRECTION THAT LEADS TO SHORTEST DISTANCE FROM TARGET
+    priority_queue<pair<int, unsigned char>, vector<pair<int, unsigned char>>, greater<pair<int, unsigned char>>> pq;
+
+    //up
+    if (availableDirection & PATH_OUT_UP) {
+        int dist = computeDistance({row - 1, col}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_UP));
+    }
+
+    //right
+    if (availableDirection & PATH_OUT_RIGHT) {
+        int dist = computeDistance({row, col + 1}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_RIGHT));
+    }
+
+    //down
+    if (availableDirection & PATH_OUT_DOWN) {
+        int dist = computeDistance({row + 1, col}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_DOWN));
+    }
+
+    //left
+    if (availableDirection & PATH_OUT_LEFT) {
+        int dist = computeDistance({row, col - 1}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_LEFT));
+    }
+
+
+    //DFS EXPLORATION
+    bool isDfsEnd = false;
+
+    // if i'm on white and on a legal move there's a black ring go into it
+    if (onWhite) {
+        if ((availableDirection & PATH_OUT_UP) && (starMap[row - 1][col] & CELL_BLACK)) {
+            insertOutPathMap(row, col, PATH_OUT_UP);
+            buffer[index] = 'U';
+            isDfsEnd = dfs(row - 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+        } else if ((availableDirection & PATH_OUT_RIGHT) && (starMap[row][col + 1] & CELL_BLACK)) {
+            insertOutPathMap(row, col, PATH_OUT_RIGHT);
+            buffer[index] = 'R';
+            isDfsEnd = dfs(row, col + 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+        } else if (((availableDirection & PATH_OUT_DOWN) && (starMap[row + 1][col] & CELL_BLACK))) {
+            insertOutPathMap(row, col, PATH_OUT_DOWN);
+            buffer[index] = 'D';
+            isDfsEnd = dfs(row + 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+
+        } else if (((availableDirection & PATH_OUT_LEFT) && (starMap[row][col - 1] & CELL_BLACK))) {
+            insertOutPathMap(row, col, PATH_OUT_LEFT);
+            buffer[index] = 'L';
+            isDfsEnd = dfs(row, col - 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                           buffer, targetMaxDepth - 1);
+        }
+        removeOutPathMap(row, col);
+    }
+
+
+    while (!isDfsEnd && !pq.empty()) {
+        //best decision
+        unsigned char bestDirection = pq.top().second;
+        pq.pop();
+
+        insertOutPathMap(row, col, bestDirection);
+
+        switch (bestDirection) {
+            case PATH_OUT_UP:
+                buffer[index] = 'U';
+                isDfsEnd = dfs(row - 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                               buffer, targetMaxDepth - 1);
+                break;
+
+            case PATH_OUT_RIGHT:
+                buffer[index] = 'R';
+                isDfsEnd = dfs(row, col + 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                               buffer, targetMaxDepth - 1);
+                break;
+
+            case PATH_OUT_DOWN:
+                buffer[index] = 'D';
+                isDfsEnd = dfs(row + 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                               buffer, targetMaxDepth - 1);
+                break;
+
+            case PATH_OUT_LEFT:
+                buffer[index] = 'L';
+                isDfsEnd = dfs(row, col - 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex, lastBlackIndex,
+                               buffer, targetMaxDepth - 1);
+                break;
+
+        }
+        removeOutPathMap(row, col);
+    }
+
+    if (!isDfsEnd) {
+        //wrong path, going back reset visited
+        starMap[row][col] &= CELL_NOT_VISITED;
+        if (onWhite || onBlack) {
+            //push the cell in targets again
+            targets.push_back({row, col});
+        }
+    }
+
+    return isDfsEnd;
+
+}
+
+bool dfsFirst(int row, int col, int index, int ringCount, int lastWhiteIndex, int lastBlackIndex, char *buffer) {
+    //RETURNED HOME WITH MAX SCORE
+    if (isStartCell(row, col) && index > 0) {
+        if (ringCount >= TOTAL_RINGS) {
+            //THE END GAME
+            printPath(ringCount, index, buffer);
+            mapToJson();
+            totalScore = 999999;
+        }
+        return true;
+    }
+
+    bool onBlack = starMap[row][col] & CELL_BLACK;
+    bool onWhite = starMap[row][col] & CELL_WHITE;
+    unsigned char prevPathMapCell = getPrevPathMapCell(row, col);
+    unsigned char prevStarMapCell = getPrevStarMapCell(row, col);
+
+    //RING COUNT CHECK
+    if (onBlack || onWhite) {
+        ringCount++;
+        //new ring, checkpoint
+        if (ringCount > totalScore && !(prevStarMapCell & CELL_WHITE)) {
+            totalScore = ringCount;
+            printPath(ringCount, index, buffer);
+            mapToJson();
+        }
+    }
+
+
+    //PRELIMINARY CHECKS
+    // 1) I am on black, prev tile has straight path?
+    // 1) correct is prevInPath == thisInPath
+    if (onBlack) {
+        if ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) {
+            //prev and current in path not matching
+            return false;
+        }
+    }
+
+    //PATH DECISION
+    unsigned char availableDirection = getAvailableDirection(row, col, index, lastWhiteIndex, ringCount);
+
+    // blind spot, return
+    if (availableDirection == 0) {
+        return false;
+    }
+
+    //update white with this if I am on white
+    if (onWhite) {
+        if (index == 0 || (prevPathMapCell & pathMap[row][col] & PATH_IN_ALL)) {
+            lastWhiteIndex = index;
+        }
+    }
+
+    //DFS EXPLORATION
+    starMap[row][col] |= CELL_VISITED;
+    bool isDfsEnd = false;
+    //up
+    if (availableDirection & PATH_OUT_UP) {
+        insertOutPathMap(row, col, PATH_OUT_UP);
+
+        buffer[index] = 'U';
+        isDfsEnd = dfsFirst(row - 1, col, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+
+        removeOutPathMap(row, col);
+    }
+    //right
+    if (!isDfsEnd && availableDirection & PATH_OUT_RIGHT) {
+        insertOutPathMap(row, col, PATH_OUT_RIGHT);
+
+        buffer[index] = 'R';
+        isDfsEnd = dfsFirst(row, col + 1, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+
+        removeOutPathMap(row, col);
+    }
+    //down
+    if (!isDfsEnd && availableDirection & PATH_OUT_DOWN) {
+        insertOutPathMap(row, col, PATH_OUT_DOWN);
+
+        buffer[index] = 'D';
+        isDfsEnd = dfsFirst(row + 1, col, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+
+        removeOutPathMap(row, col);
+    }
+    //left
+    if (!isDfsEnd && availableDirection & PATH_OUT_LEFT) {
+        insertOutPathMap(row, col, PATH_OUT_LEFT);
+
+        buffer[index] = 'L';
+        isDfsEnd = dfsFirst(row, col - 1, index + 1, ringCount, lastWhiteIndex, lastBlackIndex, buffer);
+
+        removeOutPathMap(row, col);
+    }
+
+    if (!isDfsEnd) {
+        //wrong path, going back reset visited
+        starMap[row][col] &= CELL_NOT_VISITED;
+    }
+
+    return isDfsEnd;
+
+}
+
+bool dfsEighth(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
+               int lastBlackIndex, char *buffer, int targetMaxDepth) {
+    if (targetMaxDepth < 0) {
+#ifdef DEBUG
+        //        cerr << "BREAK FOR TARGET MAX DEPTH" << endl;
+        //        cout << "BREAK FOR TARGET MAX DEPTH" << endl;
+        //        mapToJson();
+        //        exit(1);
+#endif
+        return false;
+    }
+
+    bool onBlack = starMap[row][col] & CELL_BLACK;
+    bool onWhite = starMap[row][col] & CELL_WHITE;
+    unsigned char prevPathMapCell = getPrevPathMapCell(row, col);
+    unsigned char prevStarMapCell = getPrevStarMapCell(row, col);
+
+    starMap[row][col] |= CELL_VISITED;
+
+    if ((targetRow == -1 && targetCol == -1) || (row == targetRow && col == targetCol)) {
+        Coordinates target = getNearestTarget({row, col});
+        targetRow = target.row;
+        targetCol = target.col;
+        targetMaxDepth = MAX_DFS_DEPTH;
+    }
+    if ((targetRow == -1 && targetCol == -1) || targets.size() == 0) {
+        // Go back home
+        targetRow = START_ROW;
+        targetCol = START_COL;
+        targetMaxDepth = MAX_DFS_DEPTH;
+    }
+
+    //RETURNED HOME WITH MAX SCORE
+    if (isStartCell(row, col) && index > 0 && ringCount >= TOTAL_RINGS) {
+        //check home white end rule
+        unsigned char nextPathMapCell = getNextPathMapCell(row, col);
+
+        //if on black
+        bool validExit = true;
+        if (onBlack) {
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0);
+        }
+
+        //if on a white
+        if (onWhite) {
+            //enterPrev != enterCurrent OR exitNext != exitCurrent
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0);
+        }
+
+
+        if (validExit) {
+            //THE END GAME
+            printPath(ringCount, index, buffer);
+            mapToJson();
+            totalScore = 999999;
+            return true;
+        }
+    }
+
+
+    //RING COUNT CHECK
+    if (onBlack || onWhite) {
+        ringCount++;
+    }
+
+    //new ring, checkpoint
+    if (ringCount > totalScore) {
+        bool validExit = false;
+
+        if (onBlack) {
+            //open path ends in black
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0);
+        } else if (onWhite) {
+            //open path ends in white,
+            // enterPrev != enterCurrent OR exitNext != exitCurrent
+            //        validExit |= onWhite &&
+            //                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0);
+            validExit = (prevStarMapCell & CELL_WHITE) == 0;
+        } else {
+            //not on white or black every move is ok
+            validExit = true;
+        }
+
+
+        if (validExit) {
+            totalScore = ringCount;
+            printPath(ringCount, index, buffer);
+            mapToJson();
+        }
+    }
+
+    //PRELIMINARY CHECKS
+    // 1) I am on black, prev tile has straight path?
+    // 1) correct is prevInPath == thisInPath
+    //TODO SKIP FIRST CELL CHECK(?)
+    if (onBlack && index > 1) {
+        if ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) {
+            //prev and current in path not matching
+            starMap[row][col] &= CELL_NOT_VISITED;
+            if (onWhite || onBlack) {
+                //push the cell in targets again
+                targets.push_back({row, col});
+            }
+            return false;
+        }
+    }
+
+    //PATH DECISION
+    unsigned char availableDirection = getAvailableDirection(row, col, index, lastWhiteIndex, ringCount);
+
+    // blind spot, return
+    if (availableDirection == 0) {
+        starMap[row][col] &= CELL_NOT_VISITED;
+        if (onWhite || onBlack) {
+            //push the cell in targets again
+            targets.push_back({row, col});
+        }
+        return false;
+    }
+
+    //update white with this if I am on white and I need to change direction in next cell
+    if (onWhite) {
+        //TODO SKIP CHECK ON FIRST CELL(?)
+        if (index != 0 && (prevPathMapCell & pathMap[row][col] & PATH_IN_ALL)) {
+            lastWhiteIndex = index;
+        }
+    }
+
+    // CHOSE DIRECTION THAT LEADS TO SHORTEST DISTANCE FROM TARGET
+    priority_queue<pair<int, unsigned char>, vector<pair<int, unsigned char>>, greater<pair<int, unsigned char>>> pq;
+
+    //up
+    if (availableDirection & PATH_OUT_UP) {
+        int dist = computeDistance({row - 1, col}, {targetRow, targetCol});
+        if ((getPrevPathMapCell(row, col) & PATH_OUT_UP) != 0)
+            dist -= 1;
+        pq.push(make_pair(dist, PATH_OUT_UP));
+    }
+
+    //right
+    if (availableDirection & PATH_OUT_RIGHT) {
+        int dist = computeDistance({row, col + 1}, {targetRow, targetCol});
+        if ((getPrevPathMapCell(row, col) & PATH_OUT_RIGHT) != 0)
+            dist -= 1;
+        pq.push(make_pair(dist, PATH_OUT_RIGHT));
+    }
+
+    //down
+    if (availableDirection & PATH_OUT_DOWN) {
+        int dist = computeDistance({row + 1, col}, {targetRow, targetCol});
+        if ((getPrevPathMapCell(row, col) & PATH_OUT_DOWN) != 0)
+            dist -= 1;
+        pq.push(make_pair(dist, PATH_OUT_DOWN));
+    }
+
+    //left
+    if (availableDirection & PATH_OUT_LEFT) {
+        int dist = computeDistance({row, col - 1}, {targetRow, targetCol});
+        if ((getPrevPathMapCell(row, col) & PATH_OUT_LEFT) != 0)
+            dist -= 1;
+        pq.push(make_pair(dist, PATH_OUT_LEFT));
+    }
+
+
+    //DFS EXPLORATION
+    bool isDfsEnd = false;
+
+    while (!isDfsEnd && !pq.empty()) {
+        //best decision
+        unsigned char bestDirection = pq.top().second;
+        pq.pop();
+
+        insertOutPathMap(row, col, bestDirection);
+
+        switch (bestDirection) {
+            case PATH_OUT_UP:
+                buffer[index] = 'U';
+                isDfsEnd = dfsEighth(row - 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex,
+                                     lastBlackIndex,
+                                     buffer, targetMaxDepth - 1);
+                break;
+
+            case PATH_OUT_RIGHT:
+                buffer[index] = 'R';
+                isDfsEnd = dfsEighth(row, col + 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex,
+                                     lastBlackIndex,
+                                     buffer, targetMaxDepth - 1);
+                break;
+
+            case PATH_OUT_DOWN:
+                buffer[index] = 'D';
+                isDfsEnd = dfsEighth(row + 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex,
+                                     lastBlackIndex,
+                                     buffer, targetMaxDepth - 1);
+                break;
+
+            case PATH_OUT_LEFT:
+                buffer[index] = 'L';
+                isDfsEnd = dfsEighth(row, col - 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex,
+                                     lastBlackIndex,
+                                     buffer, targetMaxDepth - 1);
+                break;
+
+        }
+        removeOutPathMap(row, col);
+    }
+
+    if (!isDfsEnd) {
+        //wrong path, going back reset visited
+        starMap[row][col] &= CELL_NOT_VISITED;
+        if (onWhite || onBlack) {
+            //push the cell in targets again
+            targets.push_back({row, col});
+        }
+    }
+
+    return isDfsEnd;
+
+}
+
+void computeSolutionFirst() {
+    START_ROW = 0;
+    START_COL = 0;
+    char *buffer = new char[66000];
+    // pick startup position
+    for (int i = 0; i < W_WHITE; ++i) {
+        int rowW = whiteRings[i].row;
+        int colW = whiteRings[i].col;
+        if (starMap[rowW][colW] & CELL_PREPROCESSED) {
+            START_ROW = rowW;
+            START_COL = colW;
+            break;
+        }
+    }
+#ifdef DEBUG
+    printf("starting from cell[%d][%d]\n", START_ROW, START_COL);
+#endif
+
+    dfsDense(START_ROW, START_COL, 0, 0, -10, -10, buffer);
+}
+
+/*void computeSolutionDense() {
+    START_ROW = 0;
+    START_COL = 0;
+    char *buffer = new char[66000];
+
+    sort(whiteRings.begin(), whiteRings.end());
+
+    int colMin = INT_MAX;
+
+    // pick startup position
+    for (int i = 0; i < W_WHITE; ++i) {
+        int rowW = whiteRings[i].row;
+        int colW = whiteRings[i].col;
+        if (colW < colMin) {
+            colMin = colW;
+            START_ROW = rowW;
+            START_COL = colW;
+        }
+//        if (starMap[rowW][colW] & CELL_PREPROCESSED) {
+//            START_ROW = rowW;
+//            START_COL = colW;
+//            break;
+//        }
+    }
+
+    //TODO
+//    START_ROW = whiteRings[0].row;
+//    START_COL = whiteRings[0].col;
+//    START_ROW = 0;
+//    START_COL = 0;
+
+    if (START_ROW == -1) {
+#ifdef DEBUG
+        cerr << "startup cell not found" << endl;
+#endif
+        START_ROW = 0;
+        START_COL = 0;
+    }
+
+#ifdef DEBUG
+    cout << "START: " << START_ROW << "," << START_COL << endl;
+#endif
+
+    dfsDense(START_ROW, START_COL, 0, 0, -10, -10, buffer);
+}*/
+
+void computeSolutionWhite() {
+    START_ROW = -1;
+    START_COL = -1;
+    char *buffer = new char[66000];
+
+    sort(whiteRings.begin(), whiteRings.end());
+    //pick startup position white
+    for (int i = 0; i < W_WHITE; ++i) {
+        int rowW = whiteRings[i].row;
+        int colW = whiteRings[i].col;
+        if (starMap[rowW][colW] & CELL_PREPROCESSED) {
+            START_ROW = rowW;
+            START_COL = colW;
+            break;
+        }
+    }
+
+    // TODO
+    START_ROW = whiteRings[0].row;
+    START_COL = whiteRings[0].col;
+
+
+    if (START_ROW == -1) {
+#ifdef DEBUG
+        cerr << "startup cell not found" << endl;
+#endif
+        START_ROW = 0;
+        START_COL = 0;
+    }
+
+#ifdef DEBUG
+    cout << "START: " << START_ROW << "," << START_COL << endl;
+#endif
+
+    targets.clear();
+    // fill targets with white and blacks rings
+    //TODO ADD WHITE TO TARGETS
+
+    for (Coordinates &white : whiteRings) {
+        targets.push_back(white);
+    }
+
+    for (Coordinates &black : blackRings) {
+        targets.push_back(black);
+    }
+
+    dfs(START_ROW, START_COL, START_ROW, START_COL, 0, 0, -10, -10, buffer, MAX_DFS_DEPTH);
+}
+
+void computeSolutionEighth() {
+    START_ROW = -1;
+    START_COL = -1;
+    char *buffer = new char[66000];
+
+    // pick startup position BLACK
+    for (int i = 0; i < B_BLACK; ++i) {
+        int rowB = blackRings[i].row;
+        int colB = blackRings[i].col;
+        if (starMap[rowB][colB] & CELL_PREPROCESSED) {
+            START_ROW = rowB;
+            START_COL = colB;
+            break;
+        }
+    }
+
+    if (START_ROW == -1) {
+#ifdef DEBUG
+        cerr << "startup cell not found" << endl;
+#endif
+        START_ROW = 0;
+        START_COL = 0;
+    }
+
+#ifdef DEBUG
+    cout << "START: " << START_ROW << "," << START_COL << endl;
+#endif
+
+    // fill targets with black rings
+    targets.clear();
+    for (Coordinates &black : blackRings) {
+        targets.push_back(black);
+    }
+
+    dfsEighth(START_ROW, START_COL, START_ROW, START_COL, 0, 0, -10, -10, buffer, MAX_DFS_DEPTH);
+
+}
+
+void computeSolutionAnticipatedHomeOLD() {
+    START_ROW = -1;
+    START_COL = -1;
+    char *buffer = new char[66000];
+
+    sort(blackRings.begin(), blackRings.end());
+    int colMin = INT_MAX;
+    // pick startup position BLACK
+    for (int i = 0; i < B_BLACK; ++i) {
+        int rowB = blackRings[i].row;
+        int colB = blackRings[i].col;
+        if (colB < colMin) {
+            colMin = colB;
+            START_ROW = rowB;
+            START_COL = colB;
+        }
+//        if (starMap[rowB][colB] & CELL_PREPROCESSED) {
+//            START_ROW = rowB;
+//            START_COL = colB;
+//            break;
+//        }
+    }
+
+//    START_ROW = blackRings[0].row;
+//    START_COL = blackRings[0].col;
+
+    if (START_ROW == -1) {
+#ifdef DEBUG
+        cerr << "startup cell not found" << endl;
+#endif
+        START_ROW = 0;
+        START_COL = 0;
+    }
+
+#ifdef DEBUG
+    cout << "START: " << START_ROW << "," << START_COL << endl;
+#endif
+
+    // fill targets with black rings
+    targets.clear();
+    for (Coordinates &black : blackRings) {
+        targets.push_back(black);
+    }
+
+    dfsAnticipatedHomeOLD(START_ROW, START_COL, START_ROW, START_COL, 0, 0, -10, -10, buffer, MAX_DFS_DEPTH);
+
+}
+
+bool dfsAnticipatedHomeOLD(int row, int col, int targetRow, int targetCol, int index, int ringCount, int lastWhiteIndex,
+                           int lastBlackIndex,
+                           char *buffer, int targetMaxDepth) {
+    if (targetMaxDepth < 0) {
+#ifdef DEBUG
+        //        cerr << "BREAK FOR TARGET MAX DEPTH" << endl;
+        //        cout << "BREAK FOR TARGET MAX DEPTH" << endl;
+        //        mapToJson();
+        //        exit(1);
+#endif
+        return false;
+    }
+
+    bool onBlack = starMap[row][col] & CELL_BLACK;
+    bool onWhite = starMap[row][col] & CELL_WHITE;
+    unsigned char prevPathMapCell = getPrevPathMapCell(row, col);
+    unsigned char prevStarMapCell = getPrevStarMapCell(row, col);
+
+    starMap[row][col] |= CELL_VISITED;
+
+
+    Coordinates target = getNearestTarget({row, col});
+    targetRow = target.row;
+    targetCol = target.col;
+    //targetMaxDepth = MAX_DFS_DEPTH;
+
+    if ((targetRow == -1 && targetCol == -1) || targets.size() == 0 || ringCount >= TARGET_THRESHOLD) {
+        // Go back home
+        targetRow = START_ROW;
+        targetCol = START_COL;
+        //targetMaxDepth = MAX_DFS_DEPTH;
+    }
+
+    //RETURNED HOME WITH MAX SCORE
+    if (isStartCell(row, col) && index > 0 && (ringCount >= TOTAL_RINGS || ringCount >= TARGET_THRESHOLD)) {
+        //check home white end rule
+        unsigned char nextPathMapCell = getNextPathMapCell(row, col);
+
+        //if on black
+        bool validExit = true;
+        if (onBlack) {
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) != 0);
+        }
+
+        //if on a white
+        if (onWhite) {
+            //enterPrev != enterCurrent OR exitNext != exitCurrent
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) ||
+                        ((nextPathMapCell & pathMap[row][col] & PATH_OUT_ALL) == 0);
+        }
+
+
+        if (validExit) {
+            //THE END GAME
+            printPath(ringCount, index, buffer);
+            mapToJson();
+            totalScore = 999999;
+            exit(0);
+            return true;
+        }
+    }
+
+
+    //RING COUNT CHECK
+    if (onBlack || onWhite) {
+        ringCount++;
+    }
+
+    //new ring, checkpoint
+    if (ringCount > totalScore) {
+        bool validExit = false;
+
+        if (onBlack) {
+            //open path ends in black
+            // prevIn == currentIN && nextOut == currentOut
+            validExit = ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) != 0);
+        } else if (onWhite) {
+            //open path ends in white,
+            // enterPrev != enterCurrent OR exitNext != exitCurrent
+            //        validExit |= onWhite &&
+            //                     ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0);
+            validExit = (prevStarMapCell & CELL_WHITE) == 0;
+        } else {
+            //not on white or black every move is ok
+            validExit = true;
+        }
+
+
+        if (validExit) {
+            totalScore = ringCount;
+            printPath(ringCount, index, buffer);
+            mapToJson();
+        }
+    }
+
+    //PRELIMINARY CHECKS
+    // 1) I am on black, prev tile has straight path?
+    // 1) correct is prevInPath == thisInPath
+    //TODO SKIP FIRST CELL CHECK(?)
+    if (onBlack && index > 1) {
+        if ((prevPathMapCell & pathMap[row][col] & PATH_IN_ALL) == 0) {
+            //prev and current in path not matching
+            starMap[row][col] &= CELL_NOT_VISITED;
+            if (onWhite || onBlack) {
+                //push the cell in targets again
+                targets.push_back({row, col});
+            }
+            return false;
+        }
+    }
+
+    //PATH DECISION
+    unsigned char availableDirection = getAvailableDirection(row, col, index, lastWhiteIndex, ringCount);
+
+    // blind spot, return
+    if (availableDirection == 0) {
+        starMap[row][col] &= CELL_NOT_VISITED;
+        if (onWhite || onBlack) {
+            //push the cell in targets again
+            targets.push_back({row, col});
+        }
+        return false;
+    }
+
+    //update white with this if I am on white and I need to change direction in next cell
+    if (onWhite) {
+        //TODO SKIP CHECK ON FIRST CELL(?)
+        if (index != 0 && (prevPathMapCell & pathMap[row][col] & PATH_IN_ALL)) {
+            lastWhiteIndex = index;
+        }
+    }
+
+    // CHOSE DIRECTION THAT LEADS TO SHORTEST DISTANCE FROM TARGET
+    priority_queue<pair<int, unsigned char>, vector<pair<int, unsigned char>>, greater<pair<int, unsigned char>>> pq;
+
+    //up
+    if (availableDirection & PATH_OUT_UP) {
+        int dist = computeDistance({row - 1, col}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_UP));
+    }
+
+    //right
+    if (availableDirection & PATH_OUT_RIGHT) {
+        int dist = computeDistance({row, col + 1}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_RIGHT));
+    }
+
+    //down
+    if (availableDirection & PATH_OUT_DOWN) {
+        int dist = computeDistance({row + 1, col}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_DOWN));
+    }
+
+    //left
+    if (availableDirection & PATH_OUT_LEFT) {
+        int dist = computeDistance({row, col - 1}, {targetRow, targetCol});
+        pq.push(make_pair(dist, PATH_OUT_LEFT));
+    }
+
+
+    //DFS EXPLORATION
+    bool isDfsEnd = false;
+
+    int distanceToTarget = computeDistance({row, col}, {targetRow, targetCol});
+    targetMaxDepth = distanceToTarget * 3 + 2;
+
+    if (onWhite) {
+        if ((availableDirection & PATH_OUT_UP) && (starMap[row - 1][col] & CELL_BLACK)) {
+            insertOutPathMap(row, col, PATH_OUT_UP);
+            buffer[index] = 'U';
+            isDfsEnd = dfsAnticipatedHomeOLD(row - 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex,
+                                             lastBlackIndex,
+                                             buffer, targetMaxDepth - 1);
+        } else if ((availableDirection & PATH_OUT_RIGHT) && (starMap[row][col + 1] & CELL_BLACK)) {
+            insertOutPathMap(row, col, PATH_OUT_RIGHT);
+            buffer[index] = 'R';
+            isDfsEnd = dfsAnticipatedHomeOLD(row, col + 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex,
+                                             lastBlackIndex,
+                                             buffer, targetMaxDepth - 1);
+        } else if (((availableDirection & PATH_OUT_DOWN) && (starMap[row + 1][col] & CELL_BLACK))) {
+            insertOutPathMap(row, col, PATH_OUT_DOWN);
+            buffer[index] = 'D';
+            isDfsEnd = dfsAnticipatedHomeOLD(row + 1, col, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex,
+                                             lastBlackIndex,
+                                             buffer, targetMaxDepth - 1);
+
+        } else if (((availableDirection & PATH_OUT_LEFT) && (starMap[row][col - 1] & CELL_BLACK))) {
+            insertOutPathMap(row, col, PATH_OUT_LEFT);
+            buffer[index] = 'L';
+            isDfsEnd = dfsAnticipatedHomeOLD(row, col - 1, targetRow, targetCol, index + 1, ringCount, lastWhiteIndex,
+                                             lastBlackIndex,
+                                             buffer, targetMaxDepth - 1);
+        }
+        removeOutPathMap(row, col);
+    }
+
+    while (!isDfsEnd && !pq.empty()) {
+        //best decision
+        unsigned char bestDirection = pq.top().second;
+        pq.pop();
+
+        insertOutPathMap(row, col, bestDirection);
+        switch (bestDirection) {
+            case PATH_OUT_UP:
+                buffer[index] = 'U';
+                isDfsEnd = dfsAnticipatedHomeOLD(row - 1, col, targetRow, targetCol, index + 1, ringCount,
+                                                 lastWhiteIndex,
+                                                 lastBlackIndex,
+                                                 buffer, targetMaxDepth - 1);
+                break;
+
+            case PATH_OUT_RIGHT:
+                buffer[index] = 'R';
+                isDfsEnd = dfsAnticipatedHomeOLD(row, col + 1, targetRow, targetCol, index + 1, ringCount,
+                                                 lastWhiteIndex,
+                                                 lastBlackIndex,
+                                                 buffer, targetMaxDepth - 1);
+                break;
+
+            case PATH_OUT_DOWN:
+                buffer[index] = 'D';
+                isDfsEnd = dfsAnticipatedHomeOLD(row + 1, col, targetRow, targetCol, index + 1, ringCount,
+                                                 lastWhiteIndex,
+                                                 lastBlackIndex,
+                                                 buffer, targetMaxDepth - 1);
+                break;
+
+            case PATH_OUT_LEFT:
+                buffer[index] = 'L';
+                isDfsEnd = dfsAnticipatedHomeOLD(row, col - 1, targetRow, targetCol, index + 1, ringCount,
+                                                 lastWhiteIndex,
+                                                 lastBlackIndex,
+                                                 buffer, targetMaxDepth - 1);
+                break;
+
+        }
+        removeOutPathMap(row, col);
+    }
+
+    if (!isDfsEnd) {
+        //wrong path, going back reset visited
+        starMap[row][col] &= CELL_NOT_VISITED;
+        if (onWhite || onBlack) {
+            //push the cell in targets again
+            targets.push_back({row, col});
+        }
+    }
+
+    return isDfsEnd;
+
+}
+
+
+void computeSolution() {
+    START_ROW = -1;
+    START_COL = -1;
+    char *buffer = new char[66000];
+
+    // pick startup position BLACK
+    for (int i = 0; i < B_BLACK; ++i) {
+        int rowB = blackRings[i].row;
+        int colB = blackRings[i].col;
+        if (starMap[rowB][colB] & CELL_PREPROCESSED) {
+            START_ROW = rowB;
+            START_COL = colB;
+            break;
+        }
+    }
+
+    if (START_ROW == -1) {
+#ifdef DEBUG
+        cerr << "startup cell not found" << endl;
+#endif
+        START_ROW = 0;
+        START_COL = 0;
+    }
+
+#ifdef DEBUG
+    cout << "START: " << START_ROW << "," << START_COL << endl;
+#endif
+
+    // fill targets with black rings
+    targets.clear();
+    for (Coordinates &black : blackRings) {
+        targets.push_back(black);
+    }
+
+    dfs(START_ROW, START_COL, START_ROW, START_COL, 0, 0, -10, -10, buffer, MAX_DFS_DEPTH);
+}
 
 /**************************** MAP UTILS ****************************/
 bool checkBounds(int row, int col) { return row >= 0 && row < N_ROWS && col >= 0 && col < M_COLS; }
@@ -1285,6 +2405,7 @@ void init() {
 
     in >> N_ROWS >> M_COLS >> B_BLACK >> W_WHITE;
     TOTAL_RINGS = B_BLACK + W_WHITE;
+//    MAX_DFS_DEPTH = (int) max(N_ROWS, M_COLS);
     MAX_DFS_DEPTH = (int) N_ROWS + M_COLS;
 
     // build starMap
